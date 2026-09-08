@@ -1,0 +1,17 @@
+input:
+  file:
+    paths: ["${FEED_FILE}"]
+    scanner:
+      re_match:
+        pattern: '(?m)^\d{4}-\d{2}-\d{2}T'
+        max_buffer_size: 65536
+pipeline:
+  processors:
+    - mapping: |
+        root.message = content().string().trim()
+        root.line_count = content().string().trim().split("\n").length()
+        root.input_format = "timestamp-delimited-stacktrace"
+output:
+  file:
+    path: "${OUTPUT_FILE}"
+    codec: lines

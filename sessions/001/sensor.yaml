@@ -1,0 +1,49 @@
+# Reconstructed teaching example, not an exact export of the live job.
+input:
+  file:
+    paths: ["${FEED_FILE}"]
+    scanner:
+      lines: {}
+pipeline:
+  processors:
+    - try:
+        - mapping: |
+            let fields = content().string().split(",")
+            root.sequence = $fields.index(0).number()
+            root.sensor_id = $fields.index(1)
+            root.temperature_c = $fields.index(2).number()
+            root.status = $fields.index(3)
+        - json_schema:
+            schema: '{"type":"object","required":["sequence","sensor_id","temperature_c","status"],"properties":{"status":{"enum":["OK","WARN","ALARM"]}}}'
+        - mapping: |
+            root = this
+            root.sensor_hash = this.sensor_id.hash("sha256").encode("hex")
+            root.sensor_id = deleted()
+            root.source = "synthetic-office-hours"
+    - catch:
+        - mapping: |
+            root = {"route":"dead-letter","raw":content().string(),"reason":error()}
+output:
+  switch:
+    cases:
+      - check: this.route.or("") == "dead-letter"
+        output:
+          file:
+            path: "${OUTPUT_FILE}.dead-letter.jsonl"
+            codec: lines
+      - check: this.status == "OK"
+        output:
+          processors:
+            - parquet_encode:
+                schema:
+                  - {name: sequence, type: INT64}
+                  - {name: temperature_c, type: DOUBLE}
+                  - {name: status, type: UTF8}
+                  - {name: sensor_hash, type: UTF8}
+          file:
+            path: "${OUTPUT_FILE}.normal-${!count(\"normal\")}.parquet"
+            codec: all-bytes
+      - output:
+          file:
+            path: "${OUTPUT_FILE}"
+            codec: lines
