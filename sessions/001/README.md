@@ -18,7 +18,7 @@ The original simulator and successive live YAML revisions have not been recovere
 From the repository root:
 
 ```sh
-uv run --with pyyaml rehearse.py csv
+uv run rehearse.py csv
 ```
 
 The simulator emits ten CSV rows: `sequence,sensor_id,temperature_c,status`.

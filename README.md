@@ -12,11 +12,12 @@ Runnable examples from the live sessions, with synthetic feeds and checks you ca
 Requirements: `uv`, Python 3.11+, and `expanso-edge` on PATH.
 
 ```sh
-uv run --with pyyaml rehearse.py csv
-uv run --with pyyaml rehearse.py binary
-uv run --with pyyaml rehearse.py multiline
+uv run rehearse.py csv
+uv run rehearse.py binary
+uv run rehearse.py multiline
 ```
 
+`uv` installs the dependencies declared in the script's inline metadata.
 Each command generates a finite synthetic feed, starts a separate local Edge,
 submits the YAML through its loopback API, checks received output, and stops Edge.
 Input, output, and logs remain in ignored `.runtime/` folders for inspection.

@@ -13,7 +13,7 @@ Prepared for the week of September 7, 2026. Broadcast date/time are not set here
 ## Non-text feed
 
 ```sh
-uv run --with pyyaml rehearse.py binary
+uv run rehearse.py binary
 ```
 
 This is real binary input: concatenated gzip members containing synthetic JSONL.
@@ -29,7 +29,7 @@ their own framing and decoder. This is a concrete first non-text example.
 ## Multiline feed
 
 ```sh
-uv run --with pyyaml rehearse.py multiline
+uv run rehearse.py multiline
 ```
 
 Each event contains five lines, including a timestamp header, stack frames, and

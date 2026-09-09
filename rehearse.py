@@ -1,3 +1,8 @@
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["pyyaml>=6.0,<7"]
+# ///
+
 """Run a finite feed through an isolated local Expanso Edge, then stop it."""
 
 import argparse
