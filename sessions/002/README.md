@@ -2,6 +2,13 @@
 
 Prepared for the week of September 7, 2026. Broadcast date/time are not set here.
 
+This directory contains its own simulator, rehearsal helper, YAML, tests and
+verification record. Copy the whole folder to use the feed examples without the
+repository root or Session 001. Requirements: `uv`, Python 3.11+ (managed by `uv`),
+and `expanso-edge` on PATH; PyYAML is declared in the scripts that use it.
+The benchmarking segment additionally requires the separately maintained
+benchmarking checkout linked below and Go. That tool is not bundled here.
+
 ## Operator runbook: 20 minutes of hands-on work
 
 Use this as a workbench, not spoken copy. Timings are pacing budgets. Each block
@@ -21,9 +28,10 @@ extend a block; none are required to fill the twenty minutes.
 
 ## Prepare the workspace before air
 
-Terminal A: office-hours repository root. Terminal B: your benchmarking checkout.
-Editor: `simulate.py`, `sessions/002/binary.yaml`, and
-`sessions/002/multiline.yaml`. Leave room to open `received.jsonl` beside a YAML
+Terminal A: this session directory (`sessions/002` in the full repository).
+Terminal B: your benchmarking checkout.
+Editor: `simulate.py`, `binary.yaml`, and
+`multiline.yaml`. Leave room to open `received.jsonl` beside a YAML
 file. Enlarge text until a five-line trace is readable in the recording preview.
 
 Check tools and record versions:
@@ -40,6 +48,9 @@ git status --short
 git rev-parse HEAD
 ```
 
+The Git commands apply when this directory is in a checkout. For a standalone
+download, record its source revision separately; Git is not required for the feeds.
+
 Warm dependencies and save known-good outputs before presenting:
 
 ```sh
@@ -50,6 +61,8 @@ uv run rehearse.py multiline
 Each command prints a new `.runtime/<mode>-…` directory containing `input`,
 `received.jsonl`, and `edge.log`. Keep a successful directory for each example as
 a backup. Show it as an earlier rehearsal result if you need it on air.
+Runtime files stay inside this session's `.runtime/`, even when a helper is invoked
+by its full path from another directory. No parent-folder helper is used.
 
 The helper generates a finite file, starts isolated local Expanso Edge, submits
 the YAML through its loopback API, checks the received file, and stops Edge.
@@ -279,7 +292,7 @@ have been pre-verified. Restore one experiment before starting the next.
 | Experiment consumes the segment | Interrupt with Ctrl-C, check cleanup, and use the labeled backup |
 
 ```sh
-FEED_FILE=input OUTPUT_FILE=output expanso-edge validate sessions/002/binary.yaml sessions/002/multiline.yaml
+FEED_FILE=input OUTPUT_FILE=output expanso-edge validate binary.yaml multiline.yaml
 ```
 
 Validation proves configuration syntax, not correct output. Rerun and inspect
@@ -342,7 +355,7 @@ Do not compare local and hosted numbers as if they describe the same machine.
 
 ## Final preflight
 
-- Run all three rehearsals and inspect actual output.
+- Run both session rehearsals (`binary` and `multiline`) and inspect actual output.
 - Complete both benchmark smoke tests on the presentation machine.
 - Check microphone and screen readability in a local recording.
 - If demonstrating Cloud, separately verify selected node, running execution,
@@ -360,11 +373,25 @@ Do not compare local and hosted numbers as if they describe the same machine.
    made during the session. Distinguish later corrections from live artifacts.
 
 Current verified scope is local engine execution and short benchmark operation;
-see [VERIFICATION.md](../../VERIFICATION.md). Presenter/OBS and any Cloud path
+see [VERIFICATION.md](VERIFICATION.md). Presenter/OBS and any Cloud path
 still need their own rehearsal.
 
 Runbook checks repeated September 8, 2026: the threshold edit produced five
 flagged records; the line-scanner experiment produced 50 one-line fragments and
 the expected failed assertion; restoring timestamp framing produced ten
 five-line events, including the final event at EOF. The original YAML files
-were restored and all three baseline rehearsals passed afterward.
+were restored and both Session 002 baseline modes passed afterward.
+
+## Offline checks
+
+From this session directory:
+
+```sh
+uv run check.py
+uvx ruff check simulate.py rehearse.py check.py tests
+uvx ruff format --check simulate.py rehearse.py check.py tests
+```
+
+These checks exercise both feed formats, invalid arguments and session-relative
+rehearsal paths from an unrelated working directory. They do not start Edge or
+run the separate benchmark harness.

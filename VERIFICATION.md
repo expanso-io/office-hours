@@ -1,5 +1,10 @@
 # Verification — September 7, 2026 (Pacific)
 
+This is the historical cross-session record. The 9 September packaging change
+relocated helpers and checks into each session; no full Edge rehearsal was rerun
+for that change. Current session-local notes travel with
+[Session 001](sessions/001/VERIFICATION.md) and [Session 002](sessions/002/VERIFICATION.md).
+
 Executed on macOS with Expanso Edge v2.1.21.
 
 | Check | Observed result |

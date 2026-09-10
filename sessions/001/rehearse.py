@@ -22,7 +22,7 @@ import yaml
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=["csv", "binary", "multiline"])
+    parser.add_argument("mode", choices=["csv"])
     args = parser.parse_args()
     root = Path(__file__).resolve().parent
     runtime = root / ".runtime"
@@ -32,16 +32,14 @@ def main():
     output = work / "received.jsonl"
     with feed.open("wb") as target:
         subprocess.run(
-            ["uv", "run", "simulate.py", args.mode], stdout=target, check=True
+            ["uv", "run", str(root / "simulate.py"), args.mode],
+            cwd=root,
+            stdout=target,
+            check=True,
         )
-    if args.mode == "csv":
-        with feed.open("ab") as target:
-            target.write(b"malformed,record\n")
-    pipeline = (
-        root
-        / "sessions"
-        / ("001/sensor.yaml" if args.mode == "csv" else f"002/{args.mode}.yaml")
-    )
+    with feed.open("ab") as target:
+        target.write(b"malformed,record\n")
+    pipeline = root / "sensor.yaml"
     config = yaml.safe_load(
         pipeline.read_text()
         .replace("${FEED_FILE}", str(feed))
@@ -97,7 +95,7 @@ def main():
             )
             with urllib.request.urlopen(request, timeout=10) as response:
                 print("Local job:", json.load(response)["job"]["id"])
-            expected = 2 if args.mode == "csv" else 10
+            expected = 2
             for _ in range(120):
                 rows = output.read_text().splitlines() if output.exists() else []
                 if len(rows) >= expected:
@@ -107,38 +105,25 @@ def main():
                 f"Expected {expected}, received {len(rows)}; see {work}"
             )
             decoded = [json.loads(row) for row in rows]
-            if args.mode == "binary":
-                assert sorted(r["sequence"] for r in decoded) == list(range(10))
-            elif args.mode == "multiline":
-                assert all(
-                    r["line_count"] == 5 and "Caused by:" in r["message"]
-                    for r in decoded
-                )
-            else:
-                for _ in range(40):
-                    if (
-                        len(list(work.glob("*.parquet"))) == 8
-                        and Path(str(output) + ".dead-letter.jsonl").exists()
-                    ):
-                        break
-                    time.sleep(0.25)
-                assert len(list(work.glob("*.parquet"))) == 8
-                assert all(
-                    p.read_bytes()[:4] == b"PAR1" and p.read_bytes()[-4:] == b"PAR1"
-                    for p in work.glob("*.parquet")
-                )
-                assert all(
-                    "sensor_id" not in r and len(r["sensor_hash"]) == 64
-                    for r in decoded
-                )
-                assert (
-                    len(
-                        Path(str(output) + ".dead-letter.jsonl")
-                        .read_text()
-                        .splitlines()
-                    )
-                    == 1
-                )
+            for _ in range(40):
+                if (
+                    len(list(work.glob("*.parquet"))) == 8
+                    and Path(str(output) + ".dead-letter.jsonl").exists()
+                ):
+                    break
+                time.sleep(0.25)
+            assert len(list(work.glob("*.parquet"))) == 8
+            assert all(
+                p.read_bytes()[:4] == b"PAR1" and p.read_bytes()[-4:] == b"PAR1"
+                for p in work.glob("*.parquet")
+            )
+            assert all(
+                "sensor_id" not in r and len(r["sensor_hash"]) == 64 for r in decoded
+            )
+            assert (
+                len(Path(str(output) + ".dead-letter.jsonl").read_text().splitlines())
+                == 1
+            )
             print(f"PASS {args.mode}: {len(rows)} received records; evidence: {work}")
         finally:
             proc.send_signal(signal.SIGINT)
