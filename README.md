@@ -22,7 +22,7 @@ machine can do it.
 | --- | --- | --- |
 | [Setup](#setup) | Connect this machine to the cluster as a node | 10 min, once |
 | [001 — CSV to Parquet, dead letters, hashing](sessions/001/README.md) | Filter, route, reject bad rows, hash identifiers | 20 min |
-| [002 — Binary feeds, multiline events, benchmarking](sessions/002/README.md) | Decompress, frame stack traces, measure throughput | 20 min |
+| [002 — Binary feeds, multiline events, benchmarking](sessions/002/README.md) | Stream bytes into a node, frame stack traces, change a running pipeline, measure throughput | 20 min |
 
 ## Setup
 
@@ -85,8 +85,10 @@ Every session folder is self-contained and has the same shape:
 | `VERIFICATION.md` | What was actually run, where, and what came out |
 | `.runtime/` | Ignored. Inputs, rendered job specs, outputs, logs from your runs |
 
-Session 002 also has `bench.py`, which drives the benchmark harness in
-[`vendor/benchmarking`](vendor/benchmarking) through Cloud.
+Session 002 also has `demo.py`, which runs the live three-console demo (raw
+bytes in, node in the middle, processed records out), and `bench.py`, which
+drives the benchmark harness in [`vendor/benchmarking`](vendor/benchmarking)
+through Cloud.
 
 Helpers work from any working directory and always keep their files inside
 their own session folder. Copy a session folder somewhere else and it still

@@ -1,5 +1,23 @@
 # Session 002 verification
 
+## Live three-console demo — 10 September 2026
+
+Both feeds now stream over TCP into a `socket_server` input and fan out to a
+file and stdout. Verified on the `expanso-demos` cluster with the office-hours
+node connected:
+
+- `demo.py binary deploy` deployed `office-hours-002-binary` (version 4) and
+  waited for the scheduler; `demo.py binary feed` streamed two records a second;
+  12 records reached `received.jsonl` in six seconds, the raw file began
+  `1f 8b`, the node log carried the same 12 records on stdout, and both
+  `raw` and `out` consoles showed them live.
+- `demo.py multiline deploy` deployed `office-hours-002-multiline` (version 2);
+  10 traces became 10 events with `line_count: 5` in the output console.
+- `rehearse.py` for both modes, converted to the same TCP flow, passed (jobs
+  at versions 8 and 3), streaming ten records and stopping the job.
+- `expanso-edge validate` accepts both YAML files; the `tail` input was ruled
+  out because it rejects `scanner` and has no multiline option.
+
 ## Cloud execution — 9 September 2026
 
 Both modes deployed to the `expanso-demos` Expanso Cloud cluster (control plane
