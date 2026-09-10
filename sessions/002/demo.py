@@ -197,7 +197,7 @@ def cmd_out(mode):
 
 def cmd_stop(mode):
     live, *_ = paths(mode)
-    cli("job", "stop", job_name(mode), check=False)
+    cli("job", "stop", job_name(mode), "--force", check=False)
     if live.exists():
         shutil.rmtree(live)
     print(f"Stopped {job_name(mode)} and cleared {live}")
