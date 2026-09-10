@@ -33,16 +33,23 @@ output:
             codec: lines
       - check: this.status == "OK"
         output:
-          processors:
-            - parquet_encode:
-                schema:
-                  - {name: sequence, type: INT64}
-                  - {name: temperature_c, type: DOUBLE}
-                  - {name: status, type: UTF8}
-                  - {name: sensor_hash, type: UTF8}
-          file:
-            path: "${OUTPUT_FILE}.normal-${!count(\"normal\")}.parquet"
-            codec: all-bytes
+          # Cloud's validator rejects processors directly under a switch case;
+          # a broker with batch processors is the accepted shape.
+          broker:
+            pattern: fan_out
+            batching:
+              count: 1
+              processors:
+                - parquet_encode:
+                    schema:
+                      - {name: sequence, type: INT64}
+                      - {name: temperature_c, type: DOUBLE}
+                      - {name: status, type: UTF8}
+                      - {name: sensor_hash, type: UTF8}
+            outputs:
+              - file:
+                  path: "${OUTPUT_FILE}.normal-${!count(\"normal\")}.parquet"
+                  codec: all-bytes
       - output:
           file:
             path: "${OUTPUT_FILE}"

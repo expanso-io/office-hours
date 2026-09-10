@@ -5,7 +5,9 @@ Prepared for the week of September 7, 2026. Broadcast date/time are not set here
 This directory contains its own simulator, rehearsal helper, YAML, tests and
 verification record. Copy the whole folder to use the feed examples without the
 repository root or Session 001. Requirements: `uv`, Python 3.11+ (managed by `uv`),
-and `expanso-edge` on PATH; PyYAML is declared in the scripts that use it.
+`expanso-cli` on PATH, Cloud credentials in an ignored `.env`, and the
+office-hours edge node running on the cluster (see [CLUSTER.md](../../CLUSTER.md));
+PyYAML is declared in the scripts that use it.
 The benchmarking segment additionally requires the separately maintained
 benchmarking checkout linked below and Go. That tool is not bundled here.
 
@@ -38,12 +40,15 @@ Check tools and record versions:
 
 ```sh
 command -v uv
+command -v expanso-cli
 command -v expanso-edge
 command -v go
 command -v jq
 command -v od
 command -v gzip
 expanso-edge version
+set -a; source ../../.env; set +a
+expanso-cli node list --endpoint "$EXPANSO_ENDPOINT" --api-key "$EXPANSO_API_KEY"
 git status --short
 git rev-parse HEAD
 ```
@@ -58,17 +63,18 @@ uv run rehearse.py binary
 uv run rehearse.py multiline
 ```
 
-Each command prints a new `.runtime/<mode>-…` directory containing `input`,
-`received.jsonl`, and `edge.log`. Keep a successful directory for each example as
+Each command prints the Cloud node, job, version and execution it used, plus a
+new `.runtime/<mode>-…` directory containing `input`, `job.yaml` (the exact spec
+deployed) and `received.jsonl`. Keep a successful directory for each example as
 a backup. Show it as an earlier rehearsal result if you need it on air.
 Runtime files stay inside this session's `.runtime/`, even when a helper is invoked
 by its full path from another directory. No parent-folder helper is used.
 
-The helper generates a finite file, starts isolated local Expanso Edge, submits
-the YAML through its loopback API, checks the received file, and stops Edge.
-It generates the entire input before processing. This is not a continuously
-tailed feed or Cloud execution. The PASS line is a check; open the output to
-demonstrate the result.
+The helper generates a finite file on the edge node, deploys the YAML as a
+Cloud job selecting the `role: office-hours` node, waits for the control plane
+to report the job complete, and checks the file the node wrote. It generates the
+entire input before processing; this is not a continuously tailed feed. The PASS
+line is a check; open the output, and the job in Cloud, to demonstrate the result.
 
 In Terminal B, run `go run ./cmd/expanso-bench run --help`, then preflight both
 benchmark commands below. Keep their saved JSON result paths. Open one result
@@ -120,8 +126,13 @@ Expect ten records, IDs 0–9 exactly once, and original fields plus
 inspection distinguishes reordering from loss.
 
 Open `rehearse.py` briefly if the audience asks where execution happens. The
-generator creates source bytes; actual Expanso Edge executes the YAML. These
-output files prove local processing, not a remote receiver or Cloud job.
+generator creates source bytes; the Cloud-scheduled execution on this node runs
+the YAML. Show the same run from the control plane:
+
+```sh
+expanso-cli job describe office-hours-002-binary --endpoint "$EXPANSO_ENDPOINT" --api-key "$EXPANSO_API_KEY"
+expanso-cli job history office-hours-002-binary --endpoint "$EXPANSO_ENDPOINT" --api-key "$EXPANSO_API_KEY"
+```
 
 ## 5–7 minutes: make a useful live edit
 
@@ -179,13 +190,14 @@ jq -s '.[0:6] | map({line_count, message})' "${multiline_run}received.jsonl"
 ```
 
 The helper should exit nonzero: ten five-line traces became 50 fragments, each
-with `line_count: 1`. Its evidence files remain available after failure and Edge
-is stopped by cleanup. Locate a `Caused by:` fragment and a header fragment.
+with `line_count: 1`. Its evidence files remain available after failure, and the
+completed job stays visible in Cloud. Locate a `Caused by:` fragment and a header fragment.
 They no longer belong to one event. More output messages here mean broken
 framing, not improved throughput.
 
-If there is no output file, inspect `edge.log`: that is a different failure from
-the expected count mismatch. Do not explain an unrelated startup error as the
+If there is no output file, inspect the job in Cloud (`expanso-cli job describe`
+and `job history`) and the running node's terminal: that is a different failure
+from the expected count mismatch. Do not explain an unrelated startup error as the
 intended demonstration.
 
 ## 10–13 minutes: repair grouping and inspect EOF
@@ -219,7 +231,7 @@ below. Show the configuration before the measurements start.
 
 Follow the actual output through five stages:
 
-1. Local Edge starts and the job reaches running state.
+1. The benchmark harness starts its own bounded Edge and the job reaches running state.
 2. Calibration measures how many records emerge per input record.
 3. The offered rate rises from 1,000 to 5,000 records/sec.
 4. Received/processed rate, CPU, and RSS change during each rung.
@@ -274,7 +286,7 @@ have been pre-verified. Restore one experiment before starting the next.
 | Different threshold | Change 65 to 68 in the added binary field | Two flagged records instead of five | 1–2 min |
 | Extra context | Add `root.demo_site = "west"` to the binary mapping | Literal label on every record; not measured node identity | 1–2 min |
 | Wrong boundary | Change the multiline pattern to `(?m)^Caused by:` | Incorrect grouping and why it happens | 2–3 min |
-| Buffer limit | Reduce multiline `max_buffer_size` to 64 | Scanner error in `edge.log`; restore 65536 | 2 min |
+| Buffer limit | Reduce multiline `max_buffer_size` to 64 | Scanner error in the job's Cloud history; restore 65536 | 2 min |
 | Batching | Change only benchmark `--batch 1000` to `--batch 0` | Measurement differences with other settings unchanged | 3–5 min |
 | Longer observation | Repeat one benchmark with `--step-seconds 20` | Behavior over a longer window | 2–3 min |
 
@@ -284,8 +296,9 @@ have been pre-verified. Restore one experiment before starting the next.
 | --- | --- |
 | Dependency download blocks | Use an earlier labeled result if offline; warm dependencies before air |
 | YAML validation fails | Inspect indentation and the last changed line; validate with the command below |
-| Assertion fails | Inspect actual received records in the newest directory, then `edge.log` |
-| No received file | Check startup, input path, scanner, and output errors in `edge.log` |
+| Assertion fails | Inspect actual received records in the newest directory, then the job in Cloud |
+| No received file | Check `expanso-cli job describe`/`history` for the job, and that the node is connected and labelled |
+| No eligible node | Start the edge node per [CLUSTER.md](../../CLUSTER.md) and confirm `expanso-cli node list` shows `role: office-hours` |
 | Multiline count explodes | Confirm the timestamp scanner was restored |
 | Binary IDs appear out of order | Sort and verify completeness; order alone is not loss |
 | Benchmark fails to start | Inspect its printed Edge log tail and current CLI help |
@@ -293,9 +306,13 @@ have been pre-verified. Restore one experiment before starting the next.
 
 ```sh
 FEED_FILE=input OUTPUT_FILE=output expanso-edge validate binary.yaml multiline.yaml
+expanso-cli job validate .runtime/<mode>-*/job.yaml --endpoint "$EXPANSO_ENDPOINT" --api-key "$EXPANSO_API_KEY"
 ```
 
-Validation proves configuration syntax, not correct output. Rerun and inspect
+The Cloud validator is stricter than the offline one (it rejected a shape the
+offline validator accepted during Session 001 conversion), so validate the
+rendered `job.yaml` against Cloud. Validation proves configuration syntax, not
+correct output. Rerun and inspect
 after a repair. Cap an unexpected environment repair at about two minutes, then
 use the backup or move to the next independent example.
 
@@ -355,16 +372,19 @@ Do not compare local and hosted numbers as if they describe the same machine.
 
 ## Final preflight
 
-- Run both session rehearsals (`binary` and `multiline`) and inspect actual output.
+- Start the edge node and confirm it in `expanso-cli node list`.
+- Run both session rehearsals (`binary` and `multiline`) and inspect actual output
+  and the corresponding jobs in Cloud.
 - Complete both benchmark smoke tests on the presentation machine.
 - Check microphone and screen readability in a local recording.
-- If demonstrating Cloud, separately verify selected node, running execution,
-  received payload, and teardown. Local rehearsals do not establish Cloud proof.
+- Both rehearsals are Cloud executions; their printed node, job, version and
+  execution are the proof to keep.
 
 ## After the call
 
-1. Confirm each helper printed `Local Edge stopped`. Stop any manually started
-   benchmark UI with Ctrl-C and check its terminal exit.
+1. Stop the edge node with Ctrl-C and confirm it disconnected in
+   `expanso-cli node list`. Stop any manually started benchmark UI with Ctrl-C
+   and check its terminal exit.
 2. Review `git diff`. Undo temporary experiments in the editor, or retain the
    intentional demonstrated changes for the post-session commit.
 3. Preserve useful output and benchmark results; review machine-specific paths
@@ -372,9 +392,9 @@ Do not compare local and hosted numbers as if they describe the same machine.
 4. Add the actual broadcast date, replay link, demonstrated commit, and changes
    made during the session. Distinguish later corrections from live artifacts.
 
-Current verified scope is local engine execution and short benchmark operation;
-see [VERIFICATION.md](VERIFICATION.md). Presenter/OBS and any Cloud path
-still need their own rehearsal.
+Current verified scope is Cloud execution of both modes on the office-hours node
+and short benchmark operation; see [VERIFICATION.md](VERIFICATION.md).
+Presenter/OBS still needs its own rehearsal.
 
 Runbook checks repeated September 8, 2026: the threshold edit produced five
 flagged records; the line-scanner experiment produced 50 one-line fragments and
@@ -393,5 +413,5 @@ uvx ruff format --check simulate.py rehearse.py check.py tests
 ```
 
 These checks exercise both feed formats, invalid arguments and session-relative
-rehearsal paths from an unrelated working directory. They do not start Edge or
-run the separate benchmark harness.
+rehearsal paths from an unrelated working directory. They do not contact Cloud
+or run the separate benchmark harness.

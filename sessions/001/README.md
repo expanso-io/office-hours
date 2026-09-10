@@ -10,15 +10,17 @@ Parquet fan-out, malformed/schema-invalid records, and identifier hashing.
 This folder is a runnable reconstruction prepared September 7, 2026 from the
 post-event runbook and transcript. It is **not an exact export of the live job**.
 The pre-event Apache access-log plan was not what ran on air. The recorded session
-included Cloud-connected execution; the reproduction here is tested locally.
+included Cloud-connected execution, and so does this reproduction: the helper
+deploys the job to the Expanso Cloud cluster and checks what the node wrote.
 The original simulator and successive live YAML revisions have not been recovered.
 
 ## Reproduce
 
 This folder stands alone: copy or download it with its scripts, `tests/`, YAML,
 and `.gitignore`. Nothing imports or executes a helper from the repository root
-or another session. Requirements: `uv`, Python 3.11+ (managed by `uv`), and
-`expanso-edge` on PATH. The rehearsal declares its PyYAML dependency inline.
+or another session. Requirements: `uv`, Python 3.11+ (managed by `uv`), `expanso-cli` on PATH,
+Cloud credentials in an ignored `.env` (see [CLUSTER.md](../../CLUSTER.md)), and
+the office-hours edge node running. The rehearsal declares its PyYAML dependency inline.
 
 From this directory (`sessions/001` in the full repository):
 
@@ -27,8 +29,10 @@ uv run rehearse.py csv
 ```
 
 Generate the feed separately with `uv run simulate.py csv --count 20`.
-The rehearsal stores input, output and logs under this folder's ignored
-`.runtime/`. It also works when invoked by its full path from another directory;
+The helper generates the feed, deploys `office-hours-001-csv` to Cloud with a
+`role: office-hours` node selector, waits for the job to complete there, and
+prints the Cloud job, version, execution and node. Input, rendered job spec and
+output live under this folder's ignored `.runtime/`. It also works when invoked by its full path from another directory;
 its files remain associated with this session, not the caller's working directory.
 
 The simulator emits ten CSV rows: `sequence,sensor_id,temperature_c,status`.
@@ -63,6 +67,6 @@ FEED_FILE=input OUTPUT_FILE=output expanso-edge validate sensor.yaml
 ```
 
 `check.py` tests the simulator and session-relative rehearsal paths without
-starting Edge. `rehearse.py csv` is the separate local engine test and stops the
-Edge process it starts. See this folder's [verification record](VERIFICATION.md)
+contacting Cloud. `rehearse.py csv` is the real Cloud execution; inspect the job
+afterwards with `expanso-cli job describe office-hours-001-csv`. See this folder's [verification record](VERIFICATION.md)
 for the distinction between historical execution and current packaging checks.

@@ -1,31 +1,29 @@
 # Session 001 verification
 
-## Packaging checks — 9 September 2026
+## Cloud execution — 9 September 2026
 
-The session now contains its own simulator, rehearsal helper, YAML, offline checks
-and ignore rules. `uv run check.py` passed three tests: exact synthetic CSV output
-from an unrelated working directory, invalid argument rejection, and session-local
-simulator/configuration resolution by the rehearsal. The path check stops before
-Edge startup; it is not a new engine execution result.
+`uv run rehearse.py csv` deployed `office-hours-001-csv` to the `expanso-demos`
+Expanso Cloud cluster (control plane v2.1.20) with a `role: office-hours` node
+selector. The control plane scheduled it on node `M5-Max.local`
+(`d6a9eba7-c98f-4302-be57-284b473b2b4c`, Expanso Edge v2.1.21, macOS arm64),
+reported the execution completed, and the node wrote:
 
-An isolated copy of this session, with no repository-root helpers present, also
-passed all three tests, rehearsal CLI help and offline YAML validation. The checks
-were launched from outside the copied session directory.
+- Two WARN records in `received.jsonl`.
+- Eight one-record Parquet files with valid `PAR1` envelope markers.
+- One malformed row in `received.jsonl.dead-letter.jsonl`.
+- SHA-256 `sensor_hash` in place of `sensor_id` in every valid record.
 
-Ruff lint/format checks and offline `expanso-edge validate sensor.yaml` passed.
-Host prerequisites remain `uv` and Expanso Edge; `uv` manages Python and the
-declared PyYAML dependency. No repository-root Python helper is required.
+The Cloud validator rejected the previous `sensor.yaml`, which put `processors`
+directly under a switch case; offline `expanso-edge validate` had accepted it.
+The OK branch now uses a `broker` with batch processors, which both validators
+accept. No standalone local engine was started.
+
+Offline `uv run check.py` passed three tests, and Ruff lint/format passed.
 
 ## Historical local execution — 7 September 2026
 
-The earlier common-helper rehearsal ran on macOS with Expanso Edge v2.1.21:
+Before the Cloud conversion, an isolated local Edge rehearsal on macOS with
+Expanso Edge v2.1.21 produced the same record counts. Retained for context only;
+local execution is no longer a supported path for office hours.
 
-- Two warning JSON records and eight normal-record Parquet files.
-- One malformed row routed to the dead-letter file.
-- Raw sensor IDs replaced by SHA-256 hashes in valid output.
-- The rehearsal stopped its isolated Edge process.
-
-Parquet files were checked for count and envelope markers, not independently
-decoded. These are local execution observations, not Cloud or recording evidence.
 This folder is reconstructed teaching code, not the original live export.
-The relocated full rehearsal has not been rerun against Edge in this packaging pass.

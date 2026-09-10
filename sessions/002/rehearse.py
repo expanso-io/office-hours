@@ -3,21 +3,89 @@
 # dependencies = ["pyyaml>=6.0,<7"]
 # ///
 
-"""Run a finite feed through an isolated local Expanso Edge, then stop it."""
+"""Deploy a finite feed pipeline to Expanso Cloud and check what the node wrote.
+
+Office hours always run on the Expanso Cloud cluster, never on a standalone local
+engine. The feed is generated on the edge node (this machine), the job is deployed
+through the control plane, and the execution is observed there. Credentials come
+from a gitignored .env in this session directory or the repository root, or from
+EXPANSO_ENDPOINT and EXPANSO_API_KEY in the environment.
+"""
 
 import argparse
 import json
 import os
 from pathlib import Path
-import signal
-import socket
 import subprocess
 import tempfile
 import time
-import urllib.error
-import urllib.request
 
 import yaml
+
+JOB_PREFIX = "office-hours-002-"
+NODE_LABELS = {"role": "office-hours"}
+EXPECTED = 10
+
+
+def credentials(root):
+    """Return (endpoint, api_key). Fail closed rather than fall back to local."""
+    values = {}
+    for env_file in (root / ".env", root.parents[1] / ".env"):
+        if env_file.is_file():
+            for line in env_file.read_text().splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, _, value = line.partition("=")
+                    values.setdefault(key.strip(), value.strip())
+            break
+    endpoint = os.environ.get("EXPANSO_ENDPOINT") or values.get("EXPANSO_ENDPOINT")
+    api_key = os.environ.get("EXPANSO_API_KEY") or values.get("EXPANSO_API_KEY")
+    if not endpoint or not api_key:
+        raise SystemExit(
+            "Expanso Cloud credentials missing. Put EXPANSO_ENDPOINT and "
+            "EXPANSO_API_KEY in an ignored .env (this folder or repository root) "
+            "or export them. Local-only execution is not an option for office hours."
+        )
+    return endpoint, api_key
+
+
+def cli(creds, *args, parse=False):
+    endpoint, api_key = creds
+    command = ["expanso-cli", *args, "--endpoint", endpoint, "--api-key", api_key]
+    if parse:
+        command += ["--format", "json"]
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"{' '.join(args)} failed ({result.returncode}):\n{result.stderr.strip()}"
+        )
+    return json.loads(result.stdout) if parse else result.stdout
+
+
+def describe(creds, name):
+    result = subprocess.run(
+        [
+            "expanso-cli",
+            "job",
+            "describe",
+            name,
+            "--format",
+            "json",
+            "--endpoint",
+            creds[0],
+            "--api-key",
+            creds[1],
+        ],
+        capture_output=True,
+        text=True,
+    )
+    return json.loads(result.stdout) if result.returncode == 0 else None
+
+
+def job_version(creds, name):
+    """Version already deployed under this name, or 0. Redeploys bump it."""
+    job = describe(creds, name)
+    return job["status"]["version"] if job else 0
 
 
 def main():
@@ -45,82 +113,100 @@ def main():
         .replace("${FEED_FILE}", str(feed))
         .replace("${OUTPUT_FILE}", str(output))
     )
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        port = sock.getsockname()[1]
-    base = f"http://127.0.0.1:{port}/api/v1"
-    # Keep all configuration and credentials isolated from the user's Cloud agent.
-    env = {k: v for k, v in os.environ.items() if not k.startswith("EXPANSO_")}
-    with (work / "edge.log").open("w") as log:
-        proc = subprocess.Popen(
-            [
-                "expanso-edge",
-                "run",
-                "--local",
-                "--no-watch",
-                "--data-dir",
-                str(work / "edge"),
-                "--api-listen",
-                f"127.0.0.1:{port}",
-            ],
-            stdout=log,
-            stderr=log,
-            env=env,
+    creds = credentials(root)
+    name = JOB_PREFIX + args.mode
+    spec = {
+        "name": name,
+        "type": "pipeline",
+        "description": f"Office hours session 002 {args.mode} feed",
+        "selector": {"match_labels": NODE_LABELS},
+        "config": config,
+    }
+    job_file = work / "job.yaml"
+    job_file.write_text(yaml.safe_dump(spec, sort_keys=False))
+
+    nodes = cli(creds, "node", "list", parse=True)
+    eligible = [
+        n
+        for n in nodes
+        if all(n["spec"].get("labels", {}).get(k) == v for k, v in NODE_LABELS.items())
+        and n["status"].get("scheduling") == "eligible"
+    ]
+    if not eligible:
+        raise SystemExit(
+            f"No eligible node labelled {NODE_LABELS} on the cluster. Start the "
+            "office-hours edge node first: "
+            'expanso-edge run --data-dir "<repo>/.expanso-edge"'
         )
-        try:
-            for _ in range(120):
-                if proc.poll() is not None:
-                    raise RuntimeError(f"Edge exited; inspect {work / 'edge.log'}")
-                try:
-                    with urllib.request.urlopen(base + "/health", timeout=1):
-                        break
-                except (urllib.error.URLError, TimeoutError):
-                    time.sleep(0.25)
-            else:
-                raise RuntimeError("Local Edge health timeout")
-            body = json.dumps(
-                {
-                    "spec": {
-                        "name": "office-hours-" + args.mode,
-                        "type": "pipeline",
-                        "config": config,
-                    }
-                }
-            ).encode()
-            request = urllib.request.Request(
-                base + "/jobs",
-                data=body,
-                method="PUT",
-                headers={"Content-Type": "application/json"},
-            )
-            with urllib.request.urlopen(request, timeout=10) as response:
-                print("Local job:", json.load(response)["job"]["id"])
-            expected = 10
-            for _ in range(120):
-                rows = output.read_text().splitlines() if output.exists() else []
-                if len(rows) >= expected:
-                    break
-                time.sleep(0.25)
-            assert len(rows) == expected, (
-                f"Expected {expected}, received {len(rows)}; see {work}"
-            )
-            decoded = [json.loads(row) for row in rows]
-            if args.mode == "binary":
-                assert sorted(r["sequence"] for r in decoded) == list(range(10))
-            else:
-                assert all(
-                    r["line_count"] == 5 and "Caused by:" in r["message"]
-                    for r in decoded
-                )
-            print(f"PASS {args.mode}: {len(rows)} received records; evidence: {work}")
-        finally:
-            proc.send_signal(signal.SIGINT)
-            try:
-                proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait()
-            print("Local Edge stopped:", proc.returncode)
+    print("Cloud node:", eligible[0]["spec"]["name"], eligible[0]["id"])
+
+    previous = job_version(creds, name)
+    print(cli(creds, "job", "deploy", str(job_file)).strip())
+    job = None
+    for _ in range(240):
+        job = describe(creds, name)
+        state = job["status"]["state"]["state_type"] if job else None
+        if (
+            job
+            and job["status"]["version"] > previous
+            and state in ("running", "completed")
+        ):
+            break
+        if state == "failed":
+            raise RuntimeError(f"Cloud job failed: {job['status']['state']}")
+        time.sleep(0.5)
+    else:
+        raise RuntimeError(
+            f"Job did not reach running/completed; see: expanso-cli job describe {name}"
+        )
+    executions = cli(
+        creds,
+        "execution",
+        "list",
+        "--job-id",
+        job["id"],
+        "--job-version",
+        str(job["status"]["version"]),
+        parse=True,
+    )
+    for e in executions:
+        print(
+            "Cloud execution:",
+            e["id"],
+            "on node",
+            e["node_id"],
+            "->",
+            e["status"]["observed_state"]["state_type"],
+        )
+    print(
+        "Cloud job:",
+        job["id"],
+        "version",
+        job["status"]["version"],
+        job["status"]["state"]["state_type"],
+    )
+
+    for _ in range(240):
+        rows = output.read_text().splitlines() if output.exists() else []
+        if len(rows) >= EXPECTED:
+            break
+        time.sleep(0.25)
+    assert len(rows) == EXPECTED, (
+        f"Expected {EXPECTED}, received {len(rows)}; see {work}"
+    )
+    decoded = [json.loads(row) for row in rows]
+    if args.mode == "binary":
+        assert sorted(r["sequence"] for r in decoded) == list(range(10))
+    else:
+        assert all(
+            r["line_count"] == 5 and "Caused by:" in r["message"] for r in decoded
+        )
+    print(
+        f"PASS {args.mode}: {len(rows)} records written by the Cloud-managed node; evidence: {work}"
+    )
+    print(
+        f"Inspect in Cloud: expanso-cli job describe {name}; expanso-cli job executions {name}"
+    )
 
 
 if __name__ == "__main__":
