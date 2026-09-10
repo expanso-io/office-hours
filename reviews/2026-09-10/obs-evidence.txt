@@ -1,0 +1,12 @@
+08:53:01.959: 	base resolution:   3840x2160
+08:53:01.959: 	output resolution: 3840x2160
+08:59:35.753: ==== Recording Start ===============================================
+08:59:35.753: [ffmpeg muxer: 'adv_file_output'] Writing file '/Users/daaronch/Movies/2026-09-10 08-59-35.mkv'...
+08:59:48.789: Output 'adv_file_output': Total frames output: 758
+08:59:48.789: Output 'adv_file_output': Number of lagged frames due to rendering lag/stalls: 31 (4.0%)
+08:59:48.791: ==== Recording Stop ================================================
+08:59:50.662: ==== Streaming Start ===============================================
+09:29:16.561: Output 'adv_stream': Total frames output: 105780 (105927 attempted)
+09:29:16.561: Output 'adv_stream': Number of lagged frames due to rendering lag/stalls: 9060 (8.5%)
+09:29:16.561: Output 'adv_stream': Number of dropped frames due to insufficient bandwidth/connection stalls: 147 (0.1%)
+09:29:16.566: ==== Streaming Stop ================================================

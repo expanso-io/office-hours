@@ -1,0 +1,5 @@
+{
+  "status": "error",
+  "error_type": "InternalServerError",
+  "error": "Error code: 500 - {'error': {'message': 'gemini-3.7-flash is currently experiencing high demand, spikes in demand are usually temporary. Please try again later.', 'code': 'api_error'}}"
+}

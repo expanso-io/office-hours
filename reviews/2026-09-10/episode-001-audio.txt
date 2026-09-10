@@ -1,0 +1,41 @@
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/Users/daaronch/code/second-brain/projects/office-hours/reviews/2026-09-10/source/episode-001-youtube.mp4':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomav01iso2mp41
+    encoder         : Lavf63.1.101
+  Duration: 00:46:34.49, start: 0.000000, bitrate: 537 kb/s
+  Stream #0:0[0x1](und): Video: av1 (libdav1d) (Main) (av01 / 0x31307661), yuv420p(tv, smpte170m/smpte170m/bt709), 1920x1080 [SAR 1:1 DAR 16:9], 427 kb/s, 30 fps, 30 tbr, 15360 tbn (default)
+    Metadata:
+      handler_name    : ISO Media file produced by Google Inc.
+  Stream #0:1[0x2](eng): Audio: opus (Opus / 0x7375704F), 48000 Hz, stereo, fltp, 103 kb/s (default)
+    Metadata:
+      handler_name    : SoundHandler
+Stream mapping:
+  Stream #0:1 -> #0:0 (opus (native) -> pcm_s16le (native))
+Press [q] to stop, [?] for help
+Output #0, null, to 'pipe:':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomav01iso2mp41
+    encoder         : Lavf63.1.101
+  Stream #0:0(eng): Audio: pcm_s16le, 192000 Hz, stereo, s16, 6144 kb/s (default)
+    Metadata:
+      encoder         : Lavc63.1.101 pcm_s16le
+      handler_name    : SoundHandler
+[Parsed_loudnorm_0 @ 0xc6903cc00] 
+{
+	"input_i" : "-23.99",
+	"input_tp" : "-9.08",
+	"input_lra" : "8.80",
+	"input_thresh" : "-34.56",
+	"output_i" : "-24.01",
+	"output_tp" : "-3.70",
+	"output_lra" : "6.70",
+	"output_thresh" : "-34.51",
+	"normalization_type" : "dynamic",
+	"target_offset" : "0.01"
+}
+[out#0/null @ 0xc6903c300] video:0KiB audio:2095870KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+size=N/A time=00:46:34.50 bitrate=N/A speed=  28x elapsed=0:01:39.70    

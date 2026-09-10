@@ -1,0 +1,6 @@
+# Downloaded review media stays local; do not commit large video blobs.
+*.mp4
+*.mkv
+*.webm
+*.part
+*.ytdl

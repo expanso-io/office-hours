@@ -1,0 +1,41 @@
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'reviews/2026-09-10/source/episode-002-twitch.mp4':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf63.1.101
+  Duration: 00:29:23.52, start: 0.000000, bitrate: 6172 kb/s
+  Stream #0:0[0x1](und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, stereo, fltp, 159 kb/s (default)
+    Metadata:
+      handler_name    : SoundHandler
+  Stream #0:1[0x2](und): Video: h264 (High) (avc1 / 0x31637661), yuv420p(tv, bt709, progressive), 1920x1080, 5997 kb/s, 59.92 fps, 60 tbr, 90k tbn, start 0.032000 (default)
+    Metadata:
+      handler_name    : VideoHandler
+Stream mapping:
+  Stream #0:0 -> #0:0 (aac (native) -> pcm_s16le (native))
+Press [q] to stop, [?] for help
+Output #0, null, to 'pipe:':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf63.1.101
+  Stream #0:0(und): Audio: pcm_s16le, 192000 Hz, stereo, s16, 6144 kb/s (default)
+    Metadata:
+      encoder         : Lavc63.1.101 pcm_s16le
+      handler_name    : SoundHandler
+[Parsed_loudnorm_0 @ 0xadac28b40] 
+{
+	"input_i" : "-23.04",
+	"input_tp" : "-5.34",
+	"input_lra" : "14.60",
+	"input_thresh" : "-35.04",
+	"output_i" : "-23.50",
+	"output_tp" : "-2.00",
+	"output_lra" : "9.40",
+	"output_thresh" : "-35.21",
+	"normalization_type" : "dynamic",
+	"target_offset" : "-0.50"
+}
+[out#0/null @ 0xadac28300] video:0KiB audio:1322624KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+size=N/A time=00:29:23.50 bitrate=N/A speed=25.2x elapsed=0:01:09.88    

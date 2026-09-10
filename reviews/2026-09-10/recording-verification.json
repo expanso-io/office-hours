@@ -1,0 +1,19 @@
+{
+  "local_recording": "/Users/daaronch/Movies/2026-09-10 08-59-35.mkv",
+  "duration_seconds": 12.65,
+  "dimensions": [
+    3840,
+    2160
+  ],
+  "fps": 60,
+  "full_decode_check": "passed",
+  "stream_start_local": "2026-09-10 08:59:50.662 PDT",
+  "stream_stop_local": "2026-09-10 09:29:16.566 PDT",
+  "local_recording_during_stream": false,
+  "render_lag_percent": 8.5,
+  "network_drop_percent": 0.1,
+  "episode_1": "https://www.youtube.com/watch?v=Utvn1Mddyfo",
+  "episode_2": "https://www.twitch.tv/videos/2870456117",
+  "episode_1_version": "edited YouTube replay, not raw original",
+  "episode_2_version": "Twitch archive, not 4K local master"
+}
