@@ -1,89 +1,83 @@
-# Session 002 — non-text, multiline, and benchmarking
+# Session 002 — Binary feeds, multiline events, and measuring throughput
 
-Prepared for the week of September 7, 2026. Broadcast date/time are not set here.
+Prepared for the week of September 7, 2026. Broadcast date and time are not set here.
 
-This directory contains its own simulator, rehearsal helper, YAML, tests and
-verification record. Copy the whole folder to use the feed examples without the
-repository root or Session 001. Requirements: `uv`, Python 3.11+ (managed by `uv`),
-`expanso-cli` on PATH, Cloud credentials in an ignored `.env`, and the
-office-hours edge node running on the cluster (see [CLUSTER.md](../../CLUSTER.md));
-PyYAML is declared in the scripts that use it.
-The benchmarking segment additionally requires the separately maintained
-benchmarking checkout linked below and Go. That tool is not bundled here.
+Session 001 dealt with one line per record. This session removes that comfort.
+You will decode a feed that is not text, frame a feed where one event spans
+several lines, break both on purpose to see what failure looks like, and then
+put a number on how fast this machine runs a pipeline. Every pipeline is
+deployed through Expanso Cloud, and every benchmark is a Cloud job too.
 
-## Operator runbook: 20 minutes of hands-on work
+## What you will learn
 
-Use this as a workbench, not spoken copy. Timings are pacing budgets. Each block
-contains something to run, inspect, change, or compare. Audience questions can
-extend a block; none are required to fill the twenty minutes.
+- What actually arrives on the wire, byte by byte, and how to tell a gzip
+  member from JSON.
+- Why "what is one record" is a decision you make, not something a parser can
+  infer, and what happens when you get it wrong.
+- How to add derived fields and predict their effect before you run.
+- How to read a benchmark result and tell *slow* from *lost*.
+- How to make a fair comparison between two pipelines.
 
-| Elapsed | Work | Visible result |
-| --- | --- | --- |
-| 0–2 min | Inspect bytes and event boundaries | Gzip header, decompressed records, complete stack trace |
-| 2–5 min | Run the binary pipeline | Ten decoded records with IDs 0–9 |
-| 5–7 min | Add a derived field and rerun | Five records flagged by a threshold |
-| 7–10 min | Break multiline framing | Fifty fragments instead of ten events |
-| 10–13 min | Restore boundaries; inspect first and last events | Complete traces, nested causes, EOF handling |
-| 13–16 min | Run a benchmark baseline | Calibration, two rungs, saved result |
-| 16–19 min | Add processing; compare results | Same settings, different pipeline work |
-| 19–20 min | Review runnable artifacts and choose a next experiment | Code, output, measurement, follow-up |
+## Before you start
 
-## Prepare the workspace before air
-
-Terminal A: this session directory (`sessions/002` in the full repository).
-Terminal B: your benchmarking checkout.
-Editor: `simulate.py`, `binary.yaml`, and
-`multiline.yaml`. Leave room to open `received.jsonl` beside a YAML
-file. Enlarge text until a five-line trace is readable in the recording preview.
-
-Check tools and record versions:
+You need the [repository setup](../../README.md#setup) done, including the
+benchmark submodule, and the office-hours node running in its own terminal.
+Open two terminals in this folder and an editor on `simulate.py`,
+`binary.yaml`, and `multiline.yaml`. Then:
 
 ```sh
-command -v uv
-command -v expanso-cli
-command -v expanso-edge
-command -v go
-command -v jq
-command -v od
-command -v gzip
-expanso-edge version
 set -a; source ../../.env; set +a
+command -v uv expanso-cli expanso-edge go jq od gzip
+expanso-edge version
 expanso-cli node list --endpoint "$EXPANSO_ENDPOINT" --api-key "$EXPANSO_API_KEY"
-git status --short
-git rev-parse HEAD
+uv run check.py
 ```
 
-The Git commands apply when this directory is in a checkout. For a standalone
-download, record its source revision separately; Git is not required for the feeds.
+Every `command -v` line should print a path, `node list` should show your
+node with `role=office-hours` and state `connected`, and `check.py` should
+print `OK`. Build the benchmark harness once (it is cached under `.runtime/`):
 
-Warm dependencies and save known-good outputs before presenting:
+```sh
+(cd ../../vendor/benchmarking && go build -o ../../.runtime/bin/expanso-bench ./cmd/expanso-bench)
+../../.runtime/bin/expanso-bench doctor
+```
+
+`doctor` should report your edge binary, `cloud: ... ok, N node(s) visible`,
+and `bootstrap: token present`. `bench.py` builds the binary itself if it is
+missing, so this step is a check, not a requirement.
+
+Finally, warm everything and save a known-good result for each mode:
 
 ```sh
 uv run rehearse.py binary
 uv run rehearse.py multiline
+uv run bench.py passthrough
 ```
 
-Each command prints the Cloud node, job, version and execution it used, plus a
-new `.runtime/<mode>-…` directory containing `input`, `job.yaml` (the exact spec
-deployed) and `received.jsonl`. Keep a successful directory for each example as
-a backup. Show it as an earlier rehearsal result if you need it on air.
-Runtime files stay inside this session's `.runtime/`, even when a helper is invoked
-by its full path from another directory. No parent-folder helper is used.
+Each rehearsal prints the Cloud node, job, version, and execution it used and a
+`PASS` line. Keep those `.runtime/` directories; they are your fallback if
+something goes wrong on air.
 
-The helper generates a finite file on the edge node, deploys the YAML as a
-Cloud job selecting the `role: office-hours` node, waits for the control plane
-to report the job complete, and checks the file the node wrote. It generates the
-entire input before processing; this is not a continuously tailed feed. The PASS
-line is a check; open the output, and the job in Cloud, to demonstrate the result.
+## The twenty minutes at a glance
 
-In Terminal B, run `go run ./cmd/expanso-bench run --help`, then preflight both
-benchmark commands below. Keep their saved JSON result paths. Open one result
-before air so you know where the configuration, pipeline, and measurements live.
-Record a short local preview to check microphone and screen readability.
+| Elapsed | Step | What you will see |
+| --- | --- | --- |
+| 0–2 | [Inspect the bytes](#step-1--inspect-the-bytes) | Gzip header, decompressed records, a complete stack trace |
+| 2–5 | [Decode the binary feed](#step-2--decode-the-binary-feed-through-cloud) | Ten records, IDs 0–9, deployed as a Cloud job |
+| 5–7 | [Add a derived field](#step-3--add-a-derived-field-and-predict-the-result) | Five records flagged by a threshold |
+| 7–10 | [Break the multiline boundary](#step-4--break-the-multiline-boundary) | Fifty fragments instead of ten events |
+| 10–13 | [Repair it and inspect EOF](#step-5--repair-the-boundary-and-inspect-eof) | Complete traces, nested causes, last event flushed |
+| 13–16 | [Measure a baseline](#step-6--measure-a-baseline-through-cloud) | Calibration, two rungs, a saved result |
+| 16–19 | [Add work and compare](#step-7--add-processing-and-compare) | Same settings, different pipeline cost |
+| 19–20 | [Review](#step-8--review-what-you-built) | Code, output, measurement, next experiment |
 
-## 0–2 minutes: inspect the sources
+Timings are pacing budgets. Audience questions can stretch a step; none is
+required to fill the time.
 
-In Terminal A, select the most recent binary rehearsal and inspect its bytes:
+## Step 1 — Inspect the bytes
+
+Pick the most recent binary rehearsal and look at its input before trusting
+any tool's opinion of it:
 
 ```sh
 binary_run=$(ls -td .runtime/binary-*/ | head -1)
@@ -92,26 +86,28 @@ gzip -dc "${binary_run}input" | head -3
 gzip -dc "${binary_run}input" | wc -l
 ```
 
-Identify the `1f 8b` gzip header. Compare those bytes with the decompressed JSON.
-Count ten source records. Open the binary branch in `simulate.py`: each record
-is compressed into one member of a concatenated gzip stream.
+The first two bytes are `1f 8b`, the gzip magic number. Decompressed, you get
+JSON lines, ten of them. Open the `binary` branch of `simulate.py`: each
+record is compressed into its own member of a concatenated gzip stream, which
+is what many devices and log shippers actually emit.
 
-Inspect the other source:
+Now the other feed:
 
 ```sh
 multiline_run=$(ls -td .runtime/multiline-*/ | head -1)
 sed -n '1,12p' "${multiline_run}input"
 ```
 
-Locate the timestamp header, exception, two stack-frame lines, and nested cause.
-The blank line is visual spacing; the corrected scanner uses timestamp headers.
-Explore what defines one message in each format. Decompression and identifying
-record boundaries are separate operations.
+Find the timestamp header, the exception line, two stack-frame lines, and the
+`Caused by:` nested cause. The blank line between events is decoration; the
+pipeline will use the timestamp as the boundary. Two separate questions are on
+the table: how do I decompress this, and where does one message end?
 
-## 2–5 minutes: decode and inspect actual output
+## Step 2 — Decode the binary feed through Cloud
 
-Walk through `binary.yaml` in order: input file → gzip decoder → child line
-scanner → JSON parser → added format label → JSONL output. Then run:
+Read [`binary.yaml`](binary.yaml) in order: file input, `decompress` scanner
+with `gzip`, a child `lines` scanner inside it, a mapping that parses JSON and
+stamps `input_format: gzip-jsonl`, a JSONL file output. Then deploy it:
 
 ```sh
 uv run rehearse.py binary
@@ -121,30 +117,34 @@ jq -s 'map(.sequence) | sort' "${binary_run}received.jsonl"
 jq -s 'sort_by(.sequence) | .[0]' "${binary_run}received.jsonl"
 ```
 
-Expect ten records, IDs 0–9 exactly once, and original fields plus
-`input_format: gzip-jsonl`. Parallel processing can change order; sorting for
-inspection distinguishes reordering from loss.
+You should see `10`, `[0,1,2,...,9]`, and a record with its original fields
+plus `input_format`. Order can vary because the pipeline is parallel; sorting
+for inspection is how you separate reordering from loss.
 
-Open `rehearse.py` briefly if the audience asks where execution happens. The
-generator creates source bytes; the Cloud-scheduled execution on this node runs
-the YAML. Show the same run from the control plane:
+Show the same run from the control plane. This is the difference between "a
+file appeared" and "the platform ran my job on that node":
 
 ```sh
 expanso-cli job describe office-hours-002-binary --endpoint "$EXPANSO_ENDPOINT" --api-key "$EXPANSO_API_KEY"
-expanso-cli job history office-hours-002-binary --endpoint "$EXPANSO_ENDPOINT" --api-key "$EXPANSO_API_KEY"
+expanso-cli job history  office-hours-002-binary --endpoint "$EXPANSO_ENDPOINT" --api-key "$EXPANSO_API_KEY"
 ```
 
-## 5–7 minutes: make a useful live edit
+`describe` shows the version (it increments every rerun), the deployed
+configuration, and a history ending in `Job completed successfully`. If the
+audience asks where execution happens: the simulator wrote bytes, the control
+plane scheduled a job onto the `role=office-hours` node, and that node ran the
+YAML. `${binary_run}job.yaml` is the exact spec that was deployed.
 
-Add this line inside the existing mapping block in `binary.yaml`, aligned with
-`root.input_format`:
+## Step 3 — Add a derived field and predict the result
+
+Inside the mapping in `binary.yaml`, aligned with `root.input_format`, add:
 
 ```bloblang
 root.needs_attention = this.temperature_c >= 65
 ```
 
-Predict the outcome before running: synthetic temperatures are 60–69, so IDs 5–9
-should qualify. Run the same input again and inspect the new directory:
+Before running, predict: synthetic temperatures run 60 to 69, so which
+sequence IDs will be flagged, and how many? Then:
 
 ```sh
 uv run rehearse.py binary
@@ -153,19 +153,19 @@ jq -s 'sort_by(.sequence) | map({sequence, temperature_c, needs_attention})' "${
 jq -s '[.[] | select(.needs_attention == true)] | length' "${binary_run}received.jsonl"
 ```
 
-Expect five flagged records. The helper checks count and sequence IDs; this
-explicit output inspection verifies the new field. Change 65 to 68 for a second
-variation if useful: expect two flagged records.
+Five flagged records, IDs 5 to 9. The helper only checks count and IDs; the
+`jq` inspection is what verifies your new field. Change 65 to 68 for a second
+variation if it helps: two flagged records.
 
-Discuss retaining a flag versus deleting a record. Filtering would change the
-expected output count and require a deliberate change to the helper's assertion.
-Remove the added line afterward, or retain it intentionally for the session's
-post-event commit. Do not let an accidental edit become the next demo's baseline.
+Talk about flagging versus filtering. Filtering would change the output count
+and require a deliberate change to the helper's assertion. Remove the line
+afterwards, or keep it on purpose for the post-session commit. Do not let an
+accidental edit become the next demo's baseline.
 
-## 7–10 minutes: break the multiline boundary
+## Step 4 — Break the multiline boundary
 
-Establish a successful `uv run rehearse.py multiline` baseline first. Replace
-only this scanner block in `multiline.yaml`:
+Make sure a clean `uv run rehearse.py multiline` baseline exists. Then in
+[`multiline.yaml`](multiline.yaml) replace only the scanner block:
 
 ```yaml
       re_match:
@@ -180,7 +180,7 @@ with:
         omit_empty: true
 ```
 
-Keep the mapping and output unchanged. Run and inspect:
+Keep the mapping and output as they are. Run and inspect:
 
 ```sh
 uv run rehearse.py multiline
@@ -189,22 +189,21 @@ jq -s 'length' "${multiline_run}received.jsonl"
 jq -s '.[0:6] | map({line_count, message})' "${multiline_run}received.jsonl"
 ```
 
-The helper should exit nonzero: ten five-line traces became 50 fragments, each
-with `line_count: 1`. Its evidence files remain available after failure, and the
-completed job stays visible in Cloud. Locate a `Caused by:` fragment and a header fragment.
-They no longer belong to one event. More output messages here mean broken
-framing, not improved throughput.
+The helper exits non-zero. Ten five-line traces became fifty fragments, every
+one with `line_count: 1`. Find a `Caused by:` fragment and a header fragment;
+they used to be one event. More output messages here is not more throughput,
+it is broken framing. The evidence directory stays for inspection and the
+completed job stays visible in Cloud.
 
-If there is no output file, inspect the job in Cloud (`expanso-cli job describe`
-and `job history`) and the running node's terminal: that is a different failure
-from the expected count mismatch. Do not explain an unrelated startup error as the
-intended demonstration.
+If there is no output file at all, that is a different failure. Check the job
+with `expanso-cli job describe` and `job history`, and the node's terminal.
+Do not explain an unrelated startup error as the intended demonstration.
 
-## 10–13 minutes: repair grouping and inspect EOF
+## Step 5 — Repair the boundary and inspect EOF
 
-Restore the exact `re_match` block above. Point out that `(?m)^` recognizes a
-timestamp at the beginning of any line, while retaining the following stack
-frames and nested cause until the next header.
+Restore the exact `re_match` block. Point out that `(?m)^` matches a
+timestamp at the start of any line, and everything until the next match
+belongs to the current event.
 
 ```sh
 uv run rehearse.py multiline
@@ -215,203 +214,182 @@ jq -r 'select(.message | contains("sequence=0 ")) | .message' "${multiline_run}r
 jq -r 'select(.message | contains("sequence=9 ")) | .message' "${multiline_run}received.jsonl"
 ```
 
-Expect ten events, distinct line counts `[5]`, and complete first and last traces.
-Sequence 9 has no following timestamp: EOF flushes it in this finite replay.
-An indefinitely open stream needs an explicit policy for an idle final event.
-This replay does not prove timeout-based flushing.
+Ten events, distinct line counts `[5]`, and complete first and last traces.
+Sequence 9 has no timestamp after it; end of file flushed it. An open stream
+that goes idle needs an explicit policy for its last event, and this finite
+replay does not prove timeout-based flushing.
 
-Inspect the 64 KiB buffer limit. Explore the assumptions: what if a trace exceeds
-it, or its body contains a timestamp at column zero? These are format contracts,
-not something a parser can infer universally.
+Look at `max_buffer_size: 65536`. Ask what happens to a trace larger than
+64 KiB, or a trace whose body contains a date at column zero. Those are format
+contracts, not things a parser can infer.
 
-## 13–16 minutes: measure a baseline
+## Step 6 — Measure a baseline through Cloud
 
-Switch to Terminal B and run the passthrough command in the benchmarking section
-below. Show the configuration before the measurements start.
+Switch to your second terminal. `bench.py` starts the harness from the
+[`vendor/benchmarking`](../../vendor/benchmarking) submodule in Cloud mode: it
+enrols this machine as a `bench-<host>` node in your workspace, deploys the
+scenario as a Cloud job, generates load into it, counts what comes out, and
+stops everything when the run ends. Its web UI binds to `127.0.0.1` only.
 
-Follow the actual output through five stages:
+```sh
+uv run bench.py passthrough
+```
 
-1. The benchmark harness starts its own bounded Edge and the job reaches running state.
-2. Calibration measures how many records emerge per input record.
-3. The offered rate rises from 1,000 to 5,000 records/sec.
-4. Received/processed rate, CPU, and RSS change during each rung.
-5. The result is saved with its configuration and exact pipeline.
+Walk the output through five stages:
 
-Open the saved JSON at the printed path. Select two measurements that explain
-what happened. Check whether the generator offered its target and whether the
-pipeline kept up. If every rung passes, the experiment established a tested
-floor under these conditions, not the machine's maximum throughput.
+1. `Cloud bench node: bench-... ` and the mode note: the harness's node
+   connected and every benchmark will be a Cloud job.
+2. Calibration measures how many output records emerge per input record
+   (1.0 for passthrough).
+3. The ladder rises from 1,000 to 5,000 records/s, three seconds each.
+4. Processed rate, edge CPU, and RSS are reported per rung.
+5. The result is saved as JSON under `.runtime/bench/results/`, with the
+   machine, edge version, mode, node id, and the exact pipeline.
 
-## 16–19 minutes: add processing and compare
+You should see two `pass` rows, `0` dropped, and a summary sentence ending in
+"every rung passed. Raise the ladder to find the limit." Open the saved JSON
+and find two things that explain the run: did the generator offer the target
+rate, and did the pipeline keep up? A passing ladder at these rates is a
+tested floor, not the machine's maximum.
 
-Open `scenarios/json-transform.yaml` in the benchmark checkout. Inspect the
-transformation and filtering condition before running its command below.
-Predict whether every input record will be forwarded.
+Longer or steeper runs are one flag away:
 
-Keep host, version, dataset, transport, batching, threads, ladder, and duration
-identical. Avoid simultaneous local work while comparing. Watch calibration:
-intentional filtering changes raw receiver counts. The harness uses measured
-selectivity to report input-equivalent processing throughput.
+```sh
+uv run bench.py passthrough --ladder 1000,5000,10000,25000 --step-seconds 10
+```
 
-Open both saved results side by side and work through:
+## Step 7 — Add processing and compare
 
-- Did both generators actually offer the requested rate?
-- Did each pipeline pass the same rung?
-- How did CPU and memory differ at that rung?
-- Was a lower receiver count intentional filtering, temporary lag, or loss?
-- What would you change for the next experiment: duration, offered rate,
-  batching, or processor cost? Pick one variable.
+Open `scenarios/json-transform.yaml` in the submodule and read its processor
+chain: it reshapes records into an OTel-style envelope, derives fields, and
+drops low-value records. Predict whether every input record will be forwarded.
+Then run it with the same settings as the baseline:
 
-Three-second rungs keep the presentation moving. They do not support production
-capacity or cost claims. If a run fails, retain and inspect it. Do not quietly
-lower the target and present a replacement as though the first run passed.
+```sh
+uv run bench.py json-transform
+```
 
-## 19–20 minutes: review the artifacts
+Watch calibration: intentional filtering changes the raw receiver count, and
+the harness uses the measured selectivity to report input-equivalent
+throughput. Keep host, edge version, dataset, transport, batch, threads,
+ladder, and step length identical between the two runs, and avoid other heavy
+work on the machine while comparing.
 
-Return to the session folder. Show the simulator, two YAML files, one received
-output, and the benchmark source link. Review the actual changes you made and
-which checks verified them. Choose one audience-inspired next experiment.
+Open both results side by side:
+
+```sh
+ls -t .runtime/bench/results/*.json | head -2 | xargs -n1 jq '{scenario: .scenario.id, mode, selectivity, steps: [.steps[] | {target_rate, process_rate, edge_cpu_avg, dropped, passed}]}'
+```
+
+Work through: did both generators offer the requested rate? Did each pipeline
+pass the same rung? How did CPU differ at that rung? Was a lower receiver
+count intentional filtering, temporary lag, or loss? What one variable would
+you change next: duration, offered rate, batch size, or processor cost?
+
+Three-second rungs keep a presentation moving. They do not support capacity
+or cost claims. If a run fails, keep it and inspect it. Do not quietly lower
+the target and present a replacement as though the first run passed.
+
+## Step 8 — Review what you built
+
+Back in the first terminal, show the simulator, the two YAML files, one
+received output, one saved benchmark result, and the jobs in Cloud:
+
+```sh
+expanso-cli job list --endpoint "$EXPANSO_ENDPOINT" --api-key "$EXPANSO_API_KEY"
+```
+
+Review the actual changes you made and which check verified each one. Pick
+one audience-inspired experiment from the table below as the next thing to
+try.
 
 The audience should leave able to identify the bytes arriving, the boundary of
-one event, the required transformation, and the conditions behind a measurement.
+one event, the transformation required, and the conditions behind a number.
 
-## Optional exercises
+## Try it yourself
 
-Choose one if a question opens it up. These are experiments; not all outcomes
-have been pre-verified. Restore one experiment before starting the next.
+Each is an experiment; not every outcome is pre-verified. Restore one before
+starting the next.
 
-| Exercise | Action | Inspect | Extra time |
+| Try | Change | What to look for | Time |
 | --- | --- | --- | --- |
-| Slower source | `uv run simulate.py multiline --count 3 --interval 1` | Source events arriving gradually; not an Edge tailing test | 1 min |
-| Different threshold | Change 65 to 68 in the added binary field | Two flagged records instead of five | 1–2 min |
-| Extra context | Add `root.demo_site = "west"` to the binary mapping | Literal label on every record; not measured node identity | 1–2 min |
-| Wrong boundary | Change the multiline pattern to `(?m)^Caused by:` | Incorrect grouping and why it happens | 2–3 min |
-| Buffer limit | Reduce multiline `max_buffer_size` to 64 | Scanner error in the job's Cloud history; restore 65536 | 2 min |
-| Batching | Change only benchmark `--batch 1000` to `--batch 0` | Measurement differences with other settings unchanged | 3–5 min |
-| Longer observation | Repeat one benchmark with `--step-seconds 20` | Behavior over a longer window | 2–3 min |
+| Slower source | `uv run simulate.py multiline --count 3 --interval 1` | Events arriving gradually; not a tailing test | 1 min |
+| Different threshold | 65 → 68 in the added binary field | Two flagged records instead of five | 1–2 min |
+| Extra context | Add `root.demo_site = "west"` to the binary mapping | A literal label on every record, not measured node identity | 1–2 min |
+| Wrong boundary | Multiline pattern `(?m)^Caused by:` | Incorrect grouping and why | 2–3 min |
+| Buffer limit | `max_buffer_size: 64` | Scanner error in the job's Cloud history; restore 65536 | 2 min |
+| No batching | `uv run bench.py passthrough --batch 0` | Per-message cost with everything else unchanged | 3–5 min |
+| Longer window | `uv run bench.py json-transform --step-seconds 20` | Behaviour over a longer rung | 2–3 min |
+| Different scenario | `uv run bench.py log-parse` or `enrich-hash` | Where CPU goes for parse-heavy work | 3–5 min |
 
 ## Recovery at the keyboard
 
 | Symptom | Next action |
 | --- | --- |
-| Dependency download blocks | Use an earlier labeled result if offline; warm dependencies before air |
-| YAML validation fails | Inspect indentation and the last changed line; validate with the command below |
-| Assertion fails | Inspect actual received records in the newest directory, then the job in Cloud |
-| No received file | Check `expanso-cli job describe`/`history` for the job, and that the node is connected and labelled |
-| No eligible node | Start the edge node per [CLUSTER.md](../../CLUSTER.md) and confirm `expanso-cli node list` shows `role: office-hours` |
+| `No eligible node labelled {'role': 'office-hours'}` | Start the node per [CLUSTER.md](../../CLUSTER.md); confirm with `expanso-cli node list` |
+| Credentials missing | Create `.env` at the repository root or beside this folder |
+| YAML validation fails on deploy | Check indentation and the last changed line; the Cloud validator is stricter than the offline one |
+| Assertion fails | Inspect the received records in the newest `.runtime/` directory, then the job in Cloud |
+| No received file | `expanso-cli job describe` and `job history`; check the node is connected and labelled |
 | Multiline count explodes | Confirm the timestamp scanner was restored |
-| Binary IDs appear out of order | Sort and verify completeness; order alone is not loss |
-| Benchmark fails to start | Inspect its printed Edge log tail and current CLI help |
-| Experiment consumes the segment | Interrupt with Ctrl-C, check cleanup, and use the labeled backup |
+| Binary IDs out of order | Sort and check completeness; order alone is not loss |
+| Bench node never reaches Cloud mode | Read `.runtime/bench/serve.log`; `EXPANSO_BOOTSTRAP_TOKEN` is required the first time |
+| Benchmark fails to start | `../../.runtime/bin/expanso-bench doctor` |
+| Experiment eats the segment | Ctrl-C, check cleanup, use the saved baseline |
+
+Validate configuration without deploying:
 
 ```sh
 FEED_FILE=input OUTPUT_FILE=output expanso-edge validate binary.yaml multiline.yaml
-expanso-cli job validate .runtime/<mode>-*/job.yaml --endpoint "$EXPANSO_ENDPOINT" --api-key "$EXPANSO_API_KEY"
+expanso-cli job validate .runtime/binary-*/job.yaml --endpoint "$EXPANSO_ENDPOINT" --api-key "$EXPANSO_API_KEY"
 ```
 
-The Cloud validator is stricter than the offline one (it rejected a shape the
-offline validator accepted during Session 001 conversion), so validate the
-rendered `job.yaml` against Cloud. Validation proves configuration syntax, not
-correct output. Rerun and inspect
-after a repair. Cap an unexpected environment repair at about two minutes, then
-use the backup or move to the next independent example.
+Validation proves syntax, not correct output. Rerun and inspect after a repair.
+Cap an unexpected environment fix at about two minutes, then use the saved
+baseline or move to the next independent step.
 
-## Reference: non-text feed
+## Reference
 
-```sh
-uv run rehearse.py binary
-```
+**Binary feed.** Concatenated gzip members, one synthetic JSON event each.
+The pipeline must decompress before it can parse. Ten events must yield
+sequence IDs 0–9 exactly once. A gzip decoder does not decode device
+protocols, images, Protobuf, or a proprietary binary schema; those need their
+own framing and decoder. This is a concrete first non-text example.
 
-This is real binary input: concatenated gzip members containing synthetic JSONL.
-Each member carries one event. Inspect the input in a hex viewer: the gzip header
-starts `1f 8b`. The pipeline must decompress bytes before parsing JSON. Ten source
-events must yield exactly sequence IDs 0–9, with no duplicates or missing IDs.
+**Multiline feed.** Five lines per event: timestamp header, exception, two
+stack frames, nested cause. A new event starts only at an ISO date at column
+zero. The next timestamp or EOF flushes the current event; an idle open stream
+needs a separate timeout design. The buffer is capped at 64 KiB.
 
-Failure challenge: remove the decompress scanner and try parsing the compressed
-bytes as JSON. Restore it and rerun. A gzip decoder does not decode arbitrary
-device protocols, images, Protobuf, or a proprietary binary schema. Those require
-their own framing and decoder. This is a concrete first non-text example.
+**Benchmark harness.** [expanso-io/benchmarking](https://github.com/expanso-io/benchmarking),
+pinned as a submodule at commit `40bf64623e3d1aff3ad33671d8ea5d38ae698d71`.
+Its CLI `run` subcommand only knows local mode; `bench.py` drives `serve`,
+which is the Cloud path, through its localhost API. Record the commit, edge
+version, machine, dataset, batch, offered rate, processed rate, and step
+length with any number you quote. Do not compare numbers from different
+machines as if they were the same.
 
-## Reference: multiline feed
+## After the session
 
-```sh
-uv run rehearse.py multiline
-```
-
-Each event contains five lines, including a timestamp header, stack frames, and
-a nested cause. The scanner starts a new event only at an ISO date at column zero.
-Ten traces must become ten JSON events, each retaining all five lines.
-
-Failure challenge: replace `re_match` with `lines: {}`. The trace becomes multiple
-unrelated events. Restore the timestamp boundary and rerun. Show the nested cause
-inside its original event. The next timestamp or EOF flushes the last event;
-an indefinitely idle open stream needs a separate timeout/framing design.
-The scanner buffer is capped at 64 KiB. A trace containing a date at column zero
-would violate this format contract.
-
-## Reference: benchmarking commands
-
-Use [expanso-io/benchmarking](https://github.com/expanso-io/benchmarking).
-Keep its presenter UI on localhost. Do not depend on the hosted URL for the call.
-From a checkout of that repository, start with its documented bounded local run:
-
-```sh
-go run ./cmd/expanso-bench run --scenario passthrough --ladder 1000,5000 --step-seconds 3
-go run ./cmd/expanso-bench run --scenario json-transform --ladder 1000,5000 --step-seconds 3
-```
-
-At reviewed commit `40bf64623e3d1aff3ad33671d8ea5d38ae698d71`, the CLI `run`
-command selects local mode internally; it does not accept `--local` despite the
-upstream README example. Use the commands above. The separate `serve` command
-does accept `--local`; bind it explicitly with `--addr 127.0.0.1:8080`.
-
-Record the exact commit, Edge version, machine, dataset, batching, offered rate,
-received rate, and run duration. These low-rate smoke tests establish operation,
-not maximum throughput. Increase the ladder only during a planned benchmark.
-Do not compare local and hosted numbers as if they describe the same machine.
-
-## Final preflight
-
-- Start the edge node and confirm it in `expanso-cli node list`.
-- Run both session rehearsals (`binary` and `multiline`) and inspect actual output
-  and the corresponding jobs in Cloud.
-- Complete both benchmark smoke tests on the presentation machine.
-- Check microphone and screen readability in a local recording.
-- Both rehearsals are Cloud executions; their printed node, job, version and
-  execution are the proof to keep.
-
-## After the call
-
-1. Stop the edge node with Ctrl-C and confirm it disconnected in
-   `expanso-cli node list`. Stop any manually started benchmark UI with Ctrl-C
-   and check its terminal exit.
-2. Review `git diff`. Undo temporary experiments in the editor, or retain the
-   intentional demonstrated changes for the post-session commit.
-3. Preserve useful output and benchmark results; review machine-specific paths
-   and identifiers before publishing result files.
-4. Add the actual broadcast date, replay link, demonstrated commit, and changes
-   made during the session. Distinguish later corrections from live artifacts.
-
-Current verified scope is Cloud execution of both modes on the office-hours node
-and short benchmark operation; see [VERIFICATION.md](VERIFICATION.md).
-Presenter/OBS still needs its own rehearsal.
-
-Runbook checks repeated September 8, 2026: the threshold edit produced five
-flagged records; the line-scanner experiment produced 50 one-line fragments and
-the expected failed assertion; restoring timestamp framing produced ten
-five-line events, including the final event at EOF. The original YAML files
-were restored and both Session 002 baseline modes passed afterward.
+1. Stop the office-hours node with Ctrl-C and confirm with
+   `expanso-cli node list` that it disconnected. `bench.py` stops its own
+   node and server; check nothing is left with `pgrep -fl expanso`.
+2. Review `git diff`. Undo temporary experiments, or keep the intentional
+   demonstrated changes for the post-session commit.
+3. Keep useful outputs and benchmark results; strip machine-specific paths
+   before publishing result files.
+4. Add the broadcast date, replay link, demonstrated commit, and changes made
+   live. Separate later corrections from live artifacts.
 
 ## Offline checks
 
-From this session directory:
-
 ```sh
 uv run check.py
-uvx ruff check simulate.py rehearse.py check.py tests
-uvx ruff format --check simulate.py rehearse.py check.py tests
+uvx ruff check simulate.py rehearse.py bench.py check.py tests
+uvx ruff format --check simulate.py rehearse.py bench.py check.py tests
 ```
 
-These checks exercise both feed formats, invalid arguments and session-relative
-rehearsal paths from an unrelated working directory. They do not contact Cloud
-or run the separate benchmark harness.
+These exercise both feed formats, invalid arguments, and session-relative
+helper paths from an unrelated working directory. They never contact Cloud or
+run the benchmark harness. See [VERIFICATION.md](VERIFICATION.md) for what was
+last executed through Cloud and what it produced.

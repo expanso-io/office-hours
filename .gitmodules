@@ -1,0 +1,3 @@
+[submodule "vendor/benchmarking"]
+	path = vendor/benchmarking
+	url = https://github.com/expanso-io/benchmarking.git
