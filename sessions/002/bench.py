@@ -167,6 +167,13 @@ def main():
             )
             print(f"Mode     : {result['mode']} on node {result.get('node_id', '')}")
             print(f"Edge     : {result['edge'].get('version', '')}")
+            # A run that fails before its first rung has no steps at all, so the
+            # error has to come out here rather than after an empty table.
+            if result["status"] != "completed":
+                print(f"Run status: {result['status']}")
+                print(result.get("error") or result["summary"])
+                print(f"saved {saved}")
+                sys.exit(1)
             print("TARGET/s  PROCESSED/s  RATIO  EDGE CPU  RSS MB  DROPPED  RESULT")
             for step in result["steps"]:
                 print(
@@ -178,9 +185,6 @@ def main():
             print()
             print(result["summary"])
             print(f"saved {saved}")
-            if result["status"] != "completed":
-                print(f"Run status: {result['status']} {result.get('error', '')}")
-                sys.exit(1)
             if result["mode"] != "cloud":
                 sys.exit(
                     "Result was not produced through Cloud; refusing to call it a pass."
