@@ -1,0 +1,22 @@
+{
+  "html_opened_and_visually_checked": true,
+  "local_media_metadata_loaded": [
+    {
+      "episode": 1,
+      "duration_display": "46:34"
+    },
+    {
+      "episode": 2,
+      "duration_display": "29:23"
+    }
+  ],
+  "review_windows": 25,
+  "timestamps_within_media": true,
+  "linked_media_and_images_exist": true,
+  "refreshed_transcript_end_seconds": {
+    "episode1": 2787.4,
+    "episode2": 1761.06
+  },
+  "lavish_server": "stopped",
+  "edited_exports_created": false
+}

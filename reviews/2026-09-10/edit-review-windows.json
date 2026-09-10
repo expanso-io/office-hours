@@ -1,0 +1,156 @@
+{
+  "1": [
+    [
+      0,
+      224,
+      "COMPRESS",
+      "Replace the broad opening with a 20-second problem and result preview."
+    ],
+    [
+      224,
+      408,
+      "KEEP / TIGHTEN",
+      "Establish Cloud, the edge node, synthetic source and tail pipeline; remove repeated navigation."
+    ],
+    [
+      408,
+      527,
+      "KEEP / TIGHTEN",
+      "Explain parsing and the keep/drop rule; trim the chat interruption."
+    ],
+    [
+      527,
+      738,
+      "KEEP",
+      "Deployment, live output and the hello.twitch field change are the clearest causal demonstration."
+    ],
+    [
+      738,
+      1055,
+      "COMPRESS",
+      "Sample-panel and predicate confusion: preserve one prediction, the actual result and the correction."
+    ],
+    [
+      1055,
+      1117,
+      "KEEP",
+      "Useful honesty: fewer messages can still mean more bytes after enrichment."
+    ],
+    [
+      1117,
+      1385,
+      "KEEP / TIGHTEN",
+      "Parquet branch: shorten assistant waiting; file existence alone does not verify its contents."
+    ],
+    [
+      1385,
+      1600,
+      "BONUS / LABEL",
+      "Kafka configuration discussion is not a demonstrated delivery; clearly label the unexecuted example."
+    ],
+    [
+      1600,
+      1998,
+      "REPAIR",
+      "Schema and dead-letter discussion has ambiguous outcome and an invalid Kafka endpoint. Add a pickup that states what was and was not verified."
+    ],
+    [
+      1998,
+      2437,
+      "REVIEW / COMPRESS",
+      "Compress deployment-threshold troubleshooting; retain the file listing around 36:12 with its limits. Around 36:45–38:45, label the MD5 example a hash transformation, not secure anonymization: predictable sensor names can be guessed. Move the binary discussion to the bonus."
+    ],
+    [
+      2437,
+      2685,
+      "BONUS",
+      "Subprocess and batching are separate lessons. Configuration and illustrative averaging should not imply a completed production workflow."
+    ],
+    [
+      2685,
+      2794,
+      "TRIM",
+      "Close on one demonstrated result and one invitation; verify any pricing claims before reusing them."
+    ]
+  ],
+  "2": [
+    [
+      0,
+      276,
+      "CUT / REPLACE",
+      "Remove startup diagnostics and stream checks; begin with a concise binary + multiline promise."
+    ],
+    [
+      276,
+      437,
+      "KEEP / TIGHTEN",
+      "Explain the jobs and fixture. Shorten repository and command setup."
+    ],
+    [
+      437,
+      545,
+      "KEEP",
+      "Show the binary scanner, gzip decoding and output routing."
+    ],
+    [
+      545,
+      650,
+      "COMPRESS / VERIFY",
+      "Empty logs and receipt navigation: show the exact run ID and received payload. Earlier preparation runs are mentioned; do not silently present old output as this live run."
+    ],
+    [
+      650,
+      725,
+      "BONUS",
+      "Short binary recap; move subprocess documentation to a separate optional explanation."
+    ],
+    [
+      725,
+      838,
+      "KEEP / TIGHTEN",
+      "Explain timestamp boundaries and why a traceback must remain one event."
+    ],
+    [
+      838,
+      858,
+      "COMPRESS",
+      "Connection refusal before startup: one honest sentence, then show the pipeline running."
+    ],
+    [
+      858,
+      990,
+      "KEEP + PICKUP",
+      "Show grouped output. At about 15:15, RuntimeError: synthetic payment timeout is payload text, not evidence that this pipeline crashed."
+    ],
+    [
+      990,
+      1140,
+      "TIGHTEN",
+      "Define benchmark workload, rate ladder and duration; remove chat-window switching."
+    ],
+    [
+      1140,
+      1268,
+      "KEEP + QUALIFY",
+      "Show the table, but qualify results as short runs on this hardware. CPU/disk causality needs separate measurement."
+    ],
+    [
+      1268,
+      1555,
+      "COMPRESS",
+      "Shell alias, script and node-restart troubleshooting: preserve the cause and recovery in 20\u201340 seconds, not the entire detour."
+    ],
+    [
+      1555,
+      1645,
+      "KEEP / TIGHTEN",
+      "JSON-transform result: at 27:05 table shows 966 and 5031 processed/s for targets 1000 and 5000. Report scope and duration, not maximum capacity."
+    ],
+    [
+      1645,
+      1763,
+      "TRIM",
+      "Keep repo link and a single result recap; end cleanly."
+    ]
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "status": "error",
+  "error_type": "RuntimeError",
+  "error": "Gemini reported that the uploaded video failed processing"
+}
