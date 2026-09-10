@@ -1,6 +1,9 @@
+# Live feed: stack traces arrive over TCP one line at a time.
+# A new event starts only where a line begins with an ISO timestamp.
 input:
-  file:
-    paths: ["${FEED_FILE}"]
+  socket_server:
+    network: tcp
+    address: "127.0.0.1:${PORT}"
     scanner:
       re_match:
         pattern: '(?m)^\d{4}-\d{2}-\d{2}T'
@@ -12,6 +15,11 @@ pipeline:
         root.line_count = content().string().trim().split("\n").length()
         root.input_format = "timestamp-delimited-stacktrace"
 output:
-  file:
-    path: "${OUTPUT_FILE}"
-    codec: lines
+  broker:
+    pattern: fan_out
+    outputs:
+      - file:
+          path: "${OUTPUT_FILE}"
+          codec: lines
+      - stdout:
+          codec: lines

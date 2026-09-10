@@ -59,6 +59,7 @@ class Feeds(unittest.TestCase):
 
     def test_invalid_feed_arguments_rejected(self):
         for arguments in (
+            [MODES[0], "--count", "-1"],
             [MODES[0], "--count", "0"],
             [MODES[0], "--interval", "-1"],
             ["csv"],
@@ -95,9 +96,12 @@ class Feeds(unittest.TestCase):
 
                 def inspect_config(text):
                     config = real_parse(text)
-                    source = Path(config["input"]["file"]["paths"][0])
-                    self.assertTrue(source.is_relative_to(runtime))
-                    self.assertNotIn("${FEED_FILE}", text)
+                    address = config["input"]["socket_server"]["address"]
+                    self.assertTrue(address.startswith("127.0.0.1:"))
+                    outputs = config["output"]["broker"]["outputs"]
+                    target = Path(outputs[0]["file"]["path"])
+                    self.assertTrue(target.is_relative_to(runtime))
+                    self.assertNotIn("${PORT}", text)
                     self.assertNotIn("${OUTPUT_FILE}", text)
                     raise StopBeforeEdge
 

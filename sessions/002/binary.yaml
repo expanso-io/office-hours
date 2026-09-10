@@ -1,6 +1,9 @@
+# Live feed: the simulator pushes concatenated gzip members over TCP.
+# The scanner decompresses the stream and splits it into lines before parsing.
 input:
-  file:
-    paths: ["${FEED_FILE}"]
+  socket_server:
+    network: tcp
+    address: "127.0.0.1:${PORT}"
     scanner:
       decompress:
         algorithm: gzip
@@ -12,6 +15,13 @@ pipeline:
         root = content().parse_json()
         root.input_format = "gzip-jsonl"
 output:
-  file:
-    path: "${OUTPUT_FILE}"
-    codec: lines
+  # Fan out so the file is there for the output console and stdout reaches
+  # the node log and `expanso-cli job logs`.
+  broker:
+    pattern: fan_out
+    outputs:
+      - file:
+          path: "${OUTPUT_FILE}"
+          codec: lines
+      - stdout:
+          codec: lines
