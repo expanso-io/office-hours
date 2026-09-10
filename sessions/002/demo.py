@@ -171,7 +171,7 @@ def cmd_raw(mode):
         # Show the compressed bytes and the decompressed JSON side by side:
         # gzip handles concatenated members as they stream in.
         script = (
-            f"tail -c +1 -f '{raw}' | tee >(od -An -tx1 -w16 -v | sed 's/^/  gz  /') "
+            f"tail -c +1 -f '{raw}' | tee >(od -An -tx1 -v | sed 's/^/  gz  /') "
             "| gzip -dc 2>/dev/null | sed -u 's/^/  json /'"
         )
         os.execvp("bash", ["bash", "-c", script])
