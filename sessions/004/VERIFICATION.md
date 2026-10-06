@@ -1,7 +1,7 @@
 # Verification — session 004
 
 Every claim below is backed by a command and its real output. The dry run
-recorded here was executed on 2026-10-06 in local mode; the Cloud lane is run
+recorded here was executed on 2026-10-06 offline (`just up-offline`); the Cloud lane is run
 again at pre-flight the night before the session.
 
 | Claim | Command | Evidence |
@@ -14,6 +14,6 @@ again at pre-flight the night before the session.
 ## Rehearsal log
 
 - [x] Local dry run of all three, start through teardown, 2026-10-06
-- [ ] Cloud dry run of all three (`just up cloud`), pre-flight the night before
+- [ ] Cloud dry run of all three (`just up`), pre-flight the night before
 - [ ] Deployed from Expanso Cloud, not a local engine
 - [ ] No credentials, customer names or prospect names on screen

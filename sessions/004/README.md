@@ -29,24 +29,28 @@ from; change the source repo and re-vendor rather than editing here.
 
 ## Before you start
 
-You need `docker`, `just` and `uv` on your PATH. For Cloud mode you also need
-an Expanso Cloud workspace: copy each demo's `.env.example` to `.env`, fill in
-the endpoint and API key, and `chmod 600 .env`. Local mode needs no
-credentials at all and is the right way to rehearse.
+You need `docker`, `just` and `uv` on your PATH, plus an Expanso Cloud
+workspace: copy each demo's `.env.example` to `.env`, fill in the endpoint and
+API key, and `chmod 600 .env`. That is what `just up` uses. `just up-offline`
+runs the same demos entirely on this machine and needs no credentials.
 
 ## Run all three
 
 ```sh
 just warm        # pull and build, so nothing downloads on air
 just validate    # config-only checks
-just up          # start all three in their baseline (pre-fix) state
+just up          # deploy/update the Cloud pipelines, start all three cockpits
 just status
 just down        # stop, then prove every port, container and volume is gone
 ```
 
-`just up cloud` runs the same thing against Expanso Cloud. Any demo can also
-be driven on its own from its own directory, which is what the run sheet does
-when one of them needs attention.
+`just up` is always the real thing: it deploys and updates the pipelines in
+Expanso Cloud and then brings the cockpits up in their baseline (pre-fix)
+state, so there is no variant to remember and no way to think you are on Cloud
+when you are not. It needs each demo's `.env`. To rehearse entirely on this
+machine with no credentials, use `just up-offline`. Any demo can also be driven
+on its own from its own directory, which is what the run sheet does when one of
+them needs attention.
 
 ## What happens when it is wrong
 

@@ -1,9 +1,12 @@
 # Pipeline Office Hours #00004 - all three demos from one place.
 #
+# `just up` deploys and updates the real Expanso Cloud pipelines and brings up
+# the three cockpits. That is the only "up": there is no cloud variant to
+# remember and no way to think you are on Cloud when you are not. Offline
+# rehearsal, which needs no credentials, is the separately named `up-offline`.
+#
 # Each demo keeps its own justfile and is the authority on its own lifecycle;
-# this file only fans out, so a target here never does anything the demo's own
-# target would not do. `mode` is passed straight through: "local" rehearses on
-# this machine, "cloud" runs against Expanso Cloud and needs each demo's .env.
+# this file only fans out.
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
@@ -17,10 +20,16 @@ warm:
 validate:
     for d in {{demos}}; do echo "== validate $d"; just -d demos/$d -f demos/$d/justfile validate; done
 
-# Start all three in their baseline (pre-fix) state.
+# Deploy and update the Cloud pipelines, then start all three cockpits in
+# their baseline (pre-fix) state. Needs each demo's .env at mode 600.
 # Pages: signal 127.0.0.1:19440, which-site-broke :19450, outage :19480.
-up mode="local":
-    for d in {{demos}}; do echo "== start $d ({{mode}})"; just -d demos/$d -f demos/$d/justfile start "{{mode}}" baseline; done
+up:
+    for d in {{demos}}; do echo "== up $d"; just -d demos/$d -f demos/$d/justfile up; done
+    just status
+
+# Same three demos entirely on this machine, no Cloud and no credentials.
+up-offline:
+    for d in {{demos}}; do echo "== up-offline $d"; just -d demos/$d -f demos/$d/justfile up-offline; done
     just status
 
 status:

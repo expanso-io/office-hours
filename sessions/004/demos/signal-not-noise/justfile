@@ -6,8 +6,20 @@ warm:
 validate:
     ./scripts/democtl.sh validate
 
-start mode="local" variant="baseline":
+start mode="cloud" variant="baseline":
     ./scripts/democtl.sh start "{{mode}}" "{{variant}}"
+
+# Office Hours #00004: plain `up` deploys and updates the real Cloud
+# pipelines and starts the cockpit. Offline rehearsal is a separate recipe.
+up variant="baseline":
+    ./scripts/democtl.sh start cloud "{{variant}}"
+
+up-offline variant="baseline":
+    ./scripts/democtl.sh start local "{{variant}}"
+
+down:
+    ./scripts/democtl.sh stop
+    ./scripts/teardown-audit.sh
 
 status:
     ./scripts/democtl.sh status
