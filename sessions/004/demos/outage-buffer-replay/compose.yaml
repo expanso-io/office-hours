@@ -1,0 +1,38 @@
+name: expanso-demo-outage-buffer-replay
+services:
+  init-buffer:
+    image: ghcr.io/astral-sh/uv@sha256:020e9eefae64e99ea2da39bcd1af1294be0a0b01e98ebad4dbedfd8b729500f7
+    command: ["sh", "-c", "chown -R 10001:10001 /runtime && chmod 700 /runtime"]
+    user: "0:0"
+    volumes:
+      - buffer-data:/runtime
+    labels: {io.expanso.demo: outage-buffer-replay}
+  demo-api:
+    build: .
+    environment:
+      DEMO_MODE: ${DEMO_MODE:-local}
+      PIPELINE_URL: ${PIPELINE_URL:-http://pipeline:8080/ingest}
+      SIMULATOR_ENABLED: "true"
+    ports: ["127.0.0.1:19480:8000"]
+    labels: {io.expanso.demo: outage-buffer-replay}
+    healthcheck:
+      test: ["CMD", "uv", "run", "--no-sync", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+  pipeline:
+    image: ghcr.io/warpstreamlabs/bento@sha256:f9c60f8890f5c9e770a79497cc3fb44346bbc25ca8949a5a87bf000b14df4999
+    command: ["run", "/etc/bento.yaml"]
+    environment:
+      DEMO_SINK_URL: http://demo-api:8000/api/sink/events
+      BUFFER_PATH: /runtime/outage-buffer.db
+    volumes:
+      - ./pipelines/pipeline.runtime.yaml:/etc/bento.yaml:ro
+      - buffer-data:/runtime
+    labels: {io.expanso.demo: outage-buffer-replay}
+    depends_on:
+      demo-api: {condition: service_healthy}
+      init-buffer: {condition: service_completed_successfully}
+volumes:
+  buffer-data:
+    labels: {io.expanso.demo: outage-buffer-replay}

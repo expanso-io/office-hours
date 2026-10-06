@@ -1,0 +1,12 @@
+name: signal-not-noise-edge
+data_dir: /data
+api:
+  listen_addr: 127.0.0.1:9010
+log:
+  level: info
+  format: json
+labels:
+  demo: signal-not-noise
+  role: demo-edge
+  environment: recorded-demo
+  region: laptop

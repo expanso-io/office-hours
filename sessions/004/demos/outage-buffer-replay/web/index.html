@@ -1,0 +1,2191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0e12">
+  <title>The network fails; the data doesn’t · Expanso live proof</title>
+  <style>
+    @font-face {
+      font-family: "IBM Plex Sans";
+      src: url("/assets/fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2");
+      font-display: swap;
+      font-style: normal;
+      font-weight: 400;
+    }
+
+    @font-face {
+      font-family: "IBM Plex Sans";
+      src: url("/assets/fonts/ibm-plex-sans-latin-500-normal.woff2") format("woff2");
+      font-display: swap;
+      font-style: normal;
+      font-weight: 500;
+    }
+
+    @font-face {
+      font-family: "IBM Plex Mono";
+      src: url("/assets/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+      font-display: swap;
+      font-style: normal;
+      font-weight: 400;
+    }
+
+    @font-face {
+      font-family: "IBM Plex Mono";
+      src: url("/assets/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
+      font-display: swap;
+      font-style: normal;
+      font-weight: 500;
+    }
+
+    :root {
+      color-scheme: dark;
+
+      --color-carbon: #0b0e12;
+      --color-surface-1: #11151a;
+      --color-surface-2: #171b20;
+      --color-surface-3: #1f242a;
+      --color-slate: #30353b;
+      --color-slate-strong: #454c54;
+
+      --color-snow: #dedede;
+      --color-platinum: #bababb;
+      --color-ash: #818284;
+      --color-steel: #5d5e61;
+      --color-dim: #434547;
+
+      --color-active: #00d892;
+      --color-active-bg: #002923;
+      --color-active-dim: #005441;
+
+      --color-warning: #f4b740;
+      --color-warning-bg: #2e240f;
+      --color-fault: #ff6b6b;
+      --color-fault-bg: #341617;
+
+      --font-sans: "IBM Plex Sans", "Helvetica Neue", sans-serif;
+      --font-mono: "IBM Plex Mono", "SFMono-Regular", monospace;
+
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 24px;
+      --space-6: 32px;
+      --space-7: 40px;
+
+      --radius-control: 1px;
+      --radius-panel: 1px;
+      --border-subtle: 1px solid var(--color-slate);
+      --focus-ring: 0 0 0 2px var(--color-carbon), 0 0 0 4px var(--color-active);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-width: 0;
+      min-height: 100%;
+      margin: 0;
+      background: var(--color-carbon);
+      color: var(--color-platinum);
+      font-family: var(--font-sans);
+      font-size: 14px;
+    }
+
+    body {
+      min-height: 100svh;
+      overflow: hidden;
+    }
+
+    button,
+    a {
+      font: inherit;
+    }
+
+    button {
+      border-radius: var(--radius-control);
+    }
+
+    button:focus-visible,
+    a:focus-visible {
+      outline: 0;
+      box-shadow: var(--focus-ring);
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .mono,
+    .utility,
+    .metric dt,
+    .metric dd,
+    .source-tag,
+    .node-status,
+    .node-kind,
+    .node-meta,
+    .edge-value,
+    .edge-state,
+    .phase-step,
+    .ack-row,
+    .runtime-status,
+    .plane-copy,
+    .run-identity,
+    pre {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .site-header {
+      height: 56px;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: var(--space-4);
+      padding: 0 var(--space-6);
+      border-bottom: var(--border-subtle);
+      background: var(--color-carbon);
+    }
+
+    .brand-lockup {
+      color: var(--color-snow);
+      font-family: var(--font-mono);
+      font-size: 14px;
+      letter-spacing: .04em;
+      white-space: nowrap;
+    }
+
+    .brand-lockup span {
+      margin-left: var(--space-3);
+      color: var(--color-ash);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: .08em;
+    }
+
+    .plane-copy {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      color: var(--color-ash);
+      font-size: 11px;
+      letter-spacing: .05em;
+      white-space: nowrap;
+    }
+
+    .plane-copy b {
+      color: var(--color-platinum);
+      font-weight: 500;
+    }
+
+    .plane-divider {
+      margin: 0 var(--space-1);
+      color: var(--color-slate-strong);
+    }
+
+    .runtime-tools {
+      justify-self: end;
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      min-width: 0;
+    }
+
+    .runtime-status {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      color: var(--color-platinum);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .runtime-square {
+      width: 8px;
+      height: 8px;
+      flex: 0 0 8px;
+      border: 1px solid var(--color-ash);
+      background: transparent;
+    }
+
+    .runtime-status.connected .runtime-square {
+      border-color: var(--color-active);
+      background: var(--color-active);
+    }
+
+    .runtime-status.reconnecting .runtime-square,
+    .runtime-status.stale .runtime-square {
+      border-color: var(--color-warning);
+      background: var(--color-warning);
+    }
+
+    .cloud-link {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 var(--space-2);
+      color: var(--color-ash);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-decoration: none;
+    }
+
+    .cloud-link:hover {
+      color: var(--color-active);
+    }
+
+    .app-shell {
+      height: calc(100svh - 56px);
+      display: grid;
+      grid-template-rows: 60px minmax(0, 1fr) 92px;
+      gap: var(--space-4);
+      padding: var(--space-5) var(--space-6) var(--space-6);
+    }
+
+    .title-row {
+      min-width: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      gap: var(--space-5);
+    }
+
+    .utility {
+      margin: 0 0 var(--space-2);
+      color: var(--color-ash);
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 16px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    p,
+    dl,
+    dd,
+    ol {
+      margin: 0;
+    }
+
+    h1 {
+      color: var(--color-snow);
+      font-size: 32px;
+      font-weight: 400;
+      line-height: 38px;
+      text-wrap: balance;
+    }
+
+    .disclosure {
+      align-self: end;
+      max-width: 500px;
+      padding-bottom: var(--space-1);
+      color: var(--color-ash);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 16px;
+      letter-spacing: .04em;
+      text-align: right;
+      text-transform: uppercase;
+    }
+
+    .workspace-grid {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 444px;
+      gap: var(--space-4);
+    }
+
+    .architecture,
+    .evidence,
+    .run-rail {
+      min-width: 0;
+      border: var(--border-subtle);
+      border-radius: var(--radius-panel);
+      background: var(--color-surface-1);
+    }
+
+    .architecture {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 72px minmax(0, 1fr) 92px;
+      overflow: hidden;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      border-bottom: var(--border-subtle);
+    }
+
+    .metric {
+      min-width: 0;
+      display: grid;
+      align-content: center;
+      gap: 2px;
+      padding: var(--space-2) var(--space-4);
+      border-right: var(--border-subtle);
+    }
+
+    .metric:last-child {
+      border-right: 0;
+    }
+
+    .metric dt {
+      overflow: hidden;
+      color: var(--color-ash);
+      font-size: 10px;
+      font-weight: 500;
+      line-height: 14px;
+      letter-spacing: .08em;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .metric dd {
+      overflow: hidden;
+      color: var(--color-snow);
+      font-size: 21px;
+      font-weight: 500;
+      line-height: 24px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .metric dd.active {
+      color: var(--color-active);
+    }
+
+    .metric dd.warning {
+      color: var(--color-warning);
+    }
+
+    .metric dd.fault {
+      color: var(--color-fault);
+    }
+
+    .source-tag {
+      overflow: hidden;
+      color: var(--color-steel);
+      font-size: 9px;
+      line-height: 12px;
+      letter-spacing: .06em;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .topology {
+      position: relative;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(150px, 1fr) minmax(76px, .56fr) minmax(168px, 1fr) minmax(76px, .56fr) minmax(168px, 1fr);
+      align-items: center;
+      gap: 0;
+      padding: var(--space-5);
+      background-image:
+        linear-gradient(color-mix(in srgb, var(--color-ash) 3%, transparent) 1px, transparent 1px),
+        linear-gradient(90deg, color-mix(in srgb, var(--color-ash) 3%, transparent) 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+
+    .node {
+      position: relative;
+      z-index: 1;
+      min-height: 92px;
+      display: grid;
+      align-content: center;
+      gap: 7px;
+      padding: var(--space-3);
+      border: var(--border-subtle);
+      border-radius: var(--radius-panel);
+      background: var(--color-surface-2);
+    }
+
+    .node.active {
+      border-color: var(--color-active-dim);
+      box-shadow: inset 0 -2px var(--color-active-dim);
+    }
+
+    .node.warning {
+      border-color: var(--color-warning);
+      background: var(--color-warning-bg);
+    }
+
+    .node.fault {
+      border-color: var(--color-fault);
+      background: var(--color-fault-bg);
+    }
+
+    .node-heading {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+    }
+
+    .node-status {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      overflow: hidden;
+      color: var(--color-platinum);
+      font-size: 10px;
+      font-weight: 500;
+      line-height: 14px;
+      letter-spacing: .06em;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .node-status::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      flex: 0 0 6px;
+      border: 1px solid currentColor;
+      background: currentColor;
+    }
+
+    .node.active .node-status {
+      color: var(--color-active);
+    }
+
+    .node.warning .node-status {
+      color: var(--color-warning);
+    }
+
+    .node.fault .node-status {
+      color: var(--color-fault);
+    }
+
+    .node-kind {
+      flex: 0 0 auto;
+      color: var(--color-ash);
+      font-size: 10px;
+      line-height: 14px;
+    }
+
+    .node-name {
+      overflow: hidden;
+      color: var(--color-snow);
+      font-size: 16px;
+      font-weight: 500;
+      line-height: 20px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .node-meta {
+      overflow: hidden;
+      color: var(--color-ash);
+      font-size: 11px;
+      line-height: 15px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #edge-meta {
+      overflow: visible;
+      white-space: normal;
+    }
+
+    .queue-meter {
+      height: 2px;
+      overflow: hidden;
+      background: var(--color-slate);
+    }
+
+    .queue-meter-fill {
+      width: 100%;
+      height: 100%;
+      background: var(--color-active);
+      transform: scaleX(0);
+      transform-origin: left center;
+      transition: transform 180ms ease-out, background-color 180ms ease-out;
+    }
+
+    .node.warning .queue-meter-fill {
+      background: var(--color-warning);
+    }
+
+    .edge {
+      position: relative;
+      height: 1px;
+      background: var(--color-slate-strong);
+    }
+
+    .edge::after {
+      content: "";
+      position: absolute;
+      top: -3px;
+      right: 0;
+      width: 0;
+      height: 0;
+      border-top: 3px solid transparent;
+      border-bottom: 3px solid transparent;
+      border-left: 6px solid var(--color-active);
+    }
+
+    .edge.warning {
+      height: 1px;
+      background: repeating-linear-gradient(
+        90deg,
+        var(--color-warning) 0,
+        var(--color-warning) 6px,
+        transparent 6px,
+        transparent 12px
+      );
+    }
+
+    .edge.warning::after {
+      border-left-color: var(--color-warning);
+    }
+
+    .edge-value,
+    .edge-state {
+      position: absolute;
+      left: 50%;
+      width: max-content;
+      max-width: 128px;
+      overflow: hidden;
+      color: var(--color-ash);
+      font-size: 9px;
+      line-height: 13px;
+      letter-spacing: .04em;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      transform: translateX(-50%);
+    }
+
+    .edge-value {
+      bottom: 10px;
+      color: var(--color-platinum);
+    }
+
+    .edge-state {
+      top: 10px;
+    }
+
+    .edge.warning .edge-value,
+    .edge.warning .edge-state {
+      color: var(--color-warning);
+    }
+
+    .topology-note {
+      position: absolute;
+      left: var(--space-5);
+      right: var(--space-5);
+      bottom: var(--space-4);
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-4);
+      padding-top: var(--space-3);
+      border-top: var(--border-subtle);
+      color: var(--color-ash);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      line-height: 14px;
+    }
+
+    .topology-note b {
+      color: var(--color-platinum);
+      font-weight: 500;
+    }
+
+    .phase-progress {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      border-top: var(--border-subtle);
+      list-style: none;
+    }
+
+    .phase-step {
+      position: relative;
+      display: grid;
+      align-content: center;
+      gap: var(--space-1);
+      padding: 0 var(--space-3);
+      border-right: var(--border-subtle);
+      color: var(--color-steel);
+      font-size: 10px;
+      line-height: 14px;
+      letter-spacing: .05em;
+    }
+
+    .phase-step:last-child {
+      border-right: 0;
+    }
+
+    .phase-step::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border: 1px solid currentColor;
+      background: transparent;
+    }
+
+    .phase-step.done {
+      color: var(--color-active);
+    }
+
+    .phase-step.done::before {
+      background: var(--color-active);
+    }
+
+    .phase-step.current {
+      color: var(--color-snow);
+      box-shadow: inset 0 -2px var(--color-active-dim);
+    }
+
+    .phase-step.current::before {
+      border-color: var(--color-active);
+      background: var(--color-active);
+    }
+
+    .phase-step.warning {
+      color: var(--color-warning);
+      background: var(--color-warning-bg);
+      box-shadow: inset 0 -2px var(--color-warning);
+    }
+
+    .phase-step.warning::before {
+      background: var(--color-warning);
+    }
+
+    .phase-step.failed {
+      color: var(--color-fault);
+      background: var(--color-fault-bg);
+      box-shadow: inset 0 -2px var(--color-fault);
+    }
+
+    .phase-step.failed::before {
+      background: var(--color-fault);
+    }
+
+    .phase-number {
+      color: currentColor;
+      font-size: 9px;
+    }
+
+    .evidence {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 44px 142px minmax(0, 1fr) 148px;
+      overflow: hidden;
+    }
+
+    .evidence-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      padding: 0 var(--space-4);
+      border-bottom: var(--border-subtle);
+    }
+
+    .evidence-heading h2 {
+      color: var(--color-platinum);
+      font-size: 16px;
+      font-weight: 500;
+      line-height: 22px;
+    }
+
+    .evidence-freshness {
+      color: var(--color-ash);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      white-space: nowrap;
+    }
+
+    .evidence-summary {
+      display: grid;
+      align-content: center;
+      gap: var(--space-2);
+      padding: var(--space-4);
+      border-bottom: var(--border-subtle);
+    }
+
+    .evidence-kicker {
+      color: var(--color-ash);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 500;
+      line-height: 15px;
+      letter-spacing: .07em;
+    }
+
+    .evidence-result {
+      max-width: 38ch;
+      color: var(--color-snow);
+      font-size: 19px;
+      line-height: 24px;
+      text-wrap: balance;
+    }
+
+    .evidence-summary.verified .evidence-kicker,
+    .evidence-summary.verified .evidence-result {
+      color: var(--color-active);
+    }
+
+    .evidence-summary.warning .evidence-kicker,
+    .evidence-summary.warning .evidence-result {
+      color: var(--color-warning);
+    }
+
+    .evidence-summary.failed .evidence-kicker,
+    .evidence-summary.failed .evidence-result {
+      color: var(--color-fault);
+    }
+
+    .evidence-detail {
+      color: var(--color-ash);
+      font-size: 13px;
+      line-height: 18px;
+    }
+
+    .payload-panel {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 32px minmax(0, 1fr);
+      border-bottom: var(--border-subtle);
+    }
+
+    .panel-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      padding: 0 var(--space-4);
+      border-bottom: var(--border-subtle);
+      color: var(--color-ash);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 500;
+      line-height: 13px;
+      letter-spacing: .07em;
+    }
+
+    pre {
+      min-width: 0;
+      min-height: 0;
+      margin: 0;
+      overflow: auto;
+      padding: var(--space-3) var(--space-4);
+      color: var(--color-platinum);
+      font-size: 11px;
+      line-height: 17px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .ack-panel {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 32px repeat(4, minmax(0, 1fr));
+    }
+
+    .ack-row {
+      min-width: 0;
+      display: grid;
+      grid-template-columns: 86px minmax(0, 1fr);
+      align-items: center;
+      gap: var(--space-2);
+      padding: 0 var(--space-4);
+      border-bottom: var(--border-subtle);
+      font-size: 10px;
+      line-height: 14px;
+    }
+
+    .ack-row:last-child {
+      border-bottom: 0;
+    }
+
+    .ack-row span {
+      color: var(--color-ash);
+    }
+
+    .ack-row b {
+      overflow: hidden;
+      color: var(--color-platinum);
+      font-weight: 500;
+      text-align: right;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .ack-row b.active {
+      color: var(--color-active);
+    }
+
+    .ack-row b.warning {
+      color: var(--color-warning);
+    }
+
+    .ack-row b.fault {
+      color: var(--color-fault);
+    }
+
+    .run-rail {
+      display: grid;
+      grid-template-columns: minmax(260px, 360px) minmax(0, 1fr) auto;
+      align-items: center;
+      gap: var(--space-5);
+      padding: var(--space-4);
+    }
+
+    .run-identity {
+      min-width: 0;
+      display: grid;
+      gap: var(--space-1);
+      color: var(--color-platinum);
+      font-size: 11px;
+      line-height: 15px;
+    }
+
+    .run-identity span:last-child {
+      overflow: hidden;
+      color: var(--color-ash);
+      font-size: 9px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .system-response {
+      min-width: 0;
+      color: var(--color-platinum);
+      font-size: 15px;
+      line-height: 20px;
+      text-wrap: pretty;
+    }
+
+    .system-response.verified {
+      color: var(--color-active);
+    }
+
+    .system-response.warning {
+      color: var(--color-warning);
+    }
+
+    .system-response.failed {
+      color: var(--color-fault);
+    }
+
+    .action-cluster {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .primary-action,
+    .reset-action {
+      min-width: 208px;
+      min-height: 48px;
+      border: 1px solid var(--color-active-dim);
+      background: var(--color-active-bg);
+      color: var(--color-active);
+      cursor: pointer;
+      font-weight: 500;
+      transition: border-color 120ms ease-out, background-color 80ms ease-out, color 120ms ease-out;
+    }
+
+    .primary-action:hover:not(:disabled) {
+      border-color: var(--color-active);
+    }
+
+    .primary-action:active:not(:disabled) {
+      background: var(--color-carbon);
+    }
+
+    .primary-action:disabled {
+      border-color: var(--color-slate);
+      background: var(--color-surface-2);
+      color: var(--color-steel);
+      cursor: not-allowed;
+    }
+
+    .reset-action {
+      min-width: 112px;
+      min-height: 44px;
+      border-color: var(--color-slate-strong);
+      background: transparent;
+      color: var(--color-platinum);
+    }
+
+    .reset-action:hover:not(:disabled) {
+      border-color: var(--color-active-dim);
+      color: var(--color-active);
+    }
+
+    .reset-action:disabled {
+      color: var(--color-steel);
+      cursor: not-allowed;
+    }
+
+    .stale-banner {
+      position: fixed;
+      z-index: 10;
+      top: 64px;
+      left: 50%;
+      max-width: calc(100vw - 64px);
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid var(--color-warning);
+      background: var(--color-warning-bg);
+      color: var(--color-warning);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 16px;
+      transform: translateX(-50%);
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    @media (min-width: 1600px) {
+      .site-header {
+        height: 64px;
+        padding: 0 var(--space-7);
+      }
+
+      .app-shell {
+        height: calc(100svh - 64px);
+        grid-template-rows: 72px minmax(0, 1fr) 128px;
+        padding: var(--space-5) var(--space-7) var(--space-7);
+      }
+
+      h1 {
+        font-size: 40px;
+        line-height: 44px;
+      }
+
+      .workspace-grid {
+        grid-template-columns: minmax(0, 1fr) 576px;
+      }
+
+      .architecture {
+        grid-template-rows: 80px minmax(0, 1fr) 104px;
+      }
+
+      .metric dd {
+        font-size: 26px;
+        line-height: 30px;
+      }
+
+      .topology {
+        grid-template-columns: minmax(208px, 1fr) minmax(140px, .72fr) minmax(208px, 1fr) minmax(140px, .72fr) minmax(208px, 1fr);
+        padding: var(--space-6);
+      }
+
+      .node {
+        min-height: 104px;
+        padding: var(--space-4);
+      }
+
+      .edge-value,
+      .edge-state {
+        max-width: 176px;
+        font-size: 10px;
+      }
+
+      .evidence {
+        grid-template-rows: 44px 156px minmax(0, 1fr) 168px;
+      }
+
+      pre {
+        font-size: 12px;
+        line-height: 18px;
+      }
+
+      .run-rail {
+        grid-template-columns: 460px minmax(0, 1fr) auto;
+        padding: var(--space-5);
+      }
+    }
+
+    @media (max-width: 1279px) and (min-width: 1180px) {
+      .workspace-grid {
+        grid-template-columns: minmax(0, 1fr) 360px;
+      }
+
+      .plane-copy {
+        display: none;
+      }
+
+      .topology {
+        grid-template-columns: minmax(132px, 1fr) minmax(60px, .42fr) minmax(150px, 1fr) minmax(60px, .42fr) minmax(150px, 1fr);
+        padding: var(--space-4);
+      }
+
+      .node-meta,
+      .topology-note {
+        font-size: 9px;
+      }
+
+      .run-rail {
+        grid-template-columns: 260px minmax(0, 1fr) auto;
+        gap: var(--space-3);
+      }
+    }
+
+    @media (max-width: 1179px) {
+      body {
+        overflow: auto;
+      }
+
+      .site-header {
+        position: sticky;
+        z-index: 5;
+        top: 0;
+        grid-template-columns: 1fr auto;
+      }
+
+      .plane-copy {
+        display: none;
+      }
+
+      .app-shell {
+        height: auto;
+        min-height: calc(100svh - 56px);
+        grid-template-rows: auto auto auto;
+      }
+
+      .title-row {
+        min-height: 60px;
+      }
+
+      .workspace-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .architecture {
+        min-height: 560px;
+      }
+
+      .evidence {
+        min-height: 540px;
+      }
+
+      .run-rail {
+        position: sticky;
+        z-index: 4;
+        bottom: 0;
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+
+      .run-identity {
+        display: none;
+      }
+    }
+
+    @media (max-width: 899px) {
+      .site-header,
+      .app-shell {
+        padding-left: var(--space-4);
+        padding-right: var(--space-4);
+      }
+
+      .runtime-status span:last-child,
+      .cloud-link,
+      .disclosure {
+        display: none;
+      }
+
+      .title-row {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 28px;
+        line-height: 34px;
+      }
+
+      .metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .metric:nth-child(2) {
+        border-right: 0;
+      }
+
+      .metric:nth-child(-n + 2) {
+        border-bottom: var(--border-subtle);
+      }
+
+      .architecture {
+        min-height: 760px;
+        grid-template-rows: 132px minmax(0, 1fr) 120px;
+      }
+
+      .topology {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 72px auto 72px auto;
+        gap: 0;
+        padding: var(--space-5);
+      }
+
+      .edge {
+        width: 1px;
+        height: 100%;
+        justify-self: center;
+      }
+
+      .edge::after {
+        top: auto;
+        right: -3px;
+        bottom: 0;
+        border-top: 6px solid var(--color-active);
+        border-right: 3px solid transparent;
+        border-bottom: 0;
+        border-left: 3px solid transparent;
+      }
+
+      .edge.warning::after {
+        border-top-color: var(--color-warning);
+        border-left-color: transparent;
+      }
+
+      .edge-value {
+        left: calc(50% + 16px);
+        bottom: calc(50% + 7px);
+        transform: none;
+      }
+
+      .edge-state {
+        top: calc(50% + 7px);
+        left: calc(50% + 16px);
+        transform: none;
+      }
+
+      .topology-note {
+        display: none;
+      }
+
+      .phase-progress {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .phase-step {
+        min-height: 60px;
+      }
+
+      .run-rail {
+        grid-template-columns: 1fr;
+      }
+
+      .action-cluster,
+      .primary-action,
+      .reset-action {
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 599px) {
+      .brand-lockup {
+        font-size: 0;
+      }
+
+      .brand-lockup span {
+        margin-left: 0;
+        font-size: 11px;
+      }
+
+      .app-shell {
+        gap: var(--space-3);
+        padding-top: var(--space-4);
+        padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom));
+      }
+
+      .evidence {
+        min-height: 560px;
+      }
+
+      .ack-row {
+        grid-template-columns: 70px minmax(0, 1fr);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.001ms !important;
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand-lockup">EXPANSO <span>LIVE PROOF</span></div>
+    <div class="plane-copy" aria-label="Control and data plane disclosure">
+      <span>CONTROL PLANE</span>
+      <b>EXPANSO CLOUD</b>
+      <span class="plane-divider">│</span>
+      <span>DATA PLANE</span>
+      <b>EDGE &rarr; RECEIVER</b>
+    </div>
+    <div class="runtime-tools">
+      <div class="runtime-status reconnecting" id="runtime-status" role="status">
+        <span class="runtime-square" aria-hidden="true"></span>
+        <span id="runtime-copy">CONNECTING · WAITING FOR SNAPSHOT</span>
+      </div>
+      <a class="cloud-link" id="cloud-link" href="https://cloud.expanso.io" target="_blank" rel="noreferrer">Open Cloud ↗</a>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <section class="title-row" aria-labelledby="demo-title">
+      <div>
+        <p class="utility">DEMO 03 / SYNTHETIC OUTAGE + BUFFER REPLAY</p>
+        <h1 id="demo-title">The network fails; the data doesn’t</h1>
+      </div>
+      <p class="disclosure">Synthetic records · simulated 12-second receiver 503 · at-least-once</p>
+    </section>
+
+    <section class="workspace-grid" aria-label="Live delivery proof">
+      <section class="architecture" aria-labelledby="architecture-title">
+        <h2 class="sr-only" id="architecture-title">Measured data path</h2>
+        <dl class="metrics" aria-label="Run measurements">
+          <div class="metric">
+            <dt>GENERATED</dt>
+            <dd id="metric-generated">—</dd>
+            <span class="source-tag">SOURCE · SIMULATOR</span>
+          </div>
+          <div class="metric">
+            <dt>ACKNOWLEDGED</dt>
+            <dd id="metric-acknowledged">—</dd>
+            <span class="source-tag" id="metric-ack-source">SOURCE · RECEIVER</span>
+          </div>
+          <div class="metric">
+            <dt>EDGE QUEUE</dt>
+            <dd id="metric-queue">—</dd>
+            <span class="source-tag" id="metric-queue-source">SOURCE · ADMISSION−ACK</span>
+          </div>
+          <div class="metric">
+            <dt>MISSING / DUPLICATE</dt>
+            <dd id="metric-audit">PENDING</dd>
+            <span class="source-tag">SOURCE · RECEIVER AUDIT</span>
+          </div>
+        </dl>
+
+        <div class="topology" aria-describedby="topology-description">
+          <div class="node active" id="source-node">
+            <div class="node-heading">
+              <span class="node-status" id="source-status">WAITING</span>
+              <span class="node-kind">SOURCE</span>
+            </div>
+            <div class="node-name">Sequence generator</div>
+            <div class="node-meta" id="source-meta">Waiting for atomic snapshot</div>
+          </div>
+
+          <div class="edge" id="source-edge">
+            <span class="edge-value">SYNTHETIC RECORDS</span>
+            <span class="edge-state" id="source-edge-state">DIRECT DATA PLANE</span>
+          </div>
+
+          <div class="node active" id="edge-node">
+            <div class="node-heading">
+              <span class="node-status" id="edge-status">WAITING</span>
+              <span class="node-kind">EDGE BUFFER</span>
+            </div>
+            <div class="node-name">Expanso Edge</div>
+            <div class="node-meta" id="edge-meta">Queue — / — · dropped —</div>
+            <div class="queue-meter" id="queue-meter" role="progressbar" aria-label="Edge queue utilization" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <div class="queue-meter-fill" id="queue-meter-fill"></div>
+            </div>
+          </div>
+
+          <div class="edge" id="receiver-edge">
+            <span class="edge-value" id="receiver-edge-value">WAITING</span>
+            <span class="edge-state" id="receiver-edge-state">RECEIVER LINK</span>
+          </div>
+
+          <div class="node" id="receiver-node">
+            <div class="node-heading">
+              <span class="node-status" id="receiver-status">WAITING</span>
+              <span class="node-kind">RECEIVER</span>
+            </div>
+            <div class="node-name">Demo receiver</div>
+            <div class="node-meta" id="receiver-meta">No acknowledgement yet</div>
+          </div>
+
+          <p class="topology-note">
+            <span><b>Cloud controls jobs.</b> Payloads stay on the data plane.</span>
+            <span>Queue = Edge admissions − unique receiver acknowledgements.</span>
+          </p>
+
+          <ol class="sr-only" id="topology-description">
+            <li id="accessible-source">Synthetic sequence generator, waiting for runtime.</li>
+            <li id="accessible-edge">Expanso Edge durable buffer, waiting for runtime.</li>
+            <li id="accessible-receiver">Demo receiver, waiting for runtime.</li>
+          </ol>
+        </div>
+
+        <ol class="phase-progress" id="phase-progress" aria-label="Outage run phase" aria-live="polite">
+          <li class="phase-step current" data-phase="ready" aria-current="step">
+            <span class="phase-number">01</span>
+            <span>READY</span>
+          </li>
+          <li class="phase-step" data-phase="offline">
+            <span class="phase-number">02</span>
+            <span>DESTINATION OFFLINE</span>
+          </li>
+          <li class="phase-step" data-phase="draining">
+            <span class="phase-number">03</span>
+            <span>DRAINING</span>
+          </li>
+          <li class="phase-step" data-phase="auditing">
+            <span class="phase-number">04</span>
+            <span>RECEIVER AUDIT</span>
+          </li>
+          <li class="phase-step" data-phase="terminal">
+            <span class="phase-number">05</span>
+            <span id="terminal-phase-label">VERIFIED / FAILED</span>
+          </li>
+        </ol>
+      </section>
+
+      <aside class="evidence" aria-labelledby="evidence-title">
+        <div class="evidence-heading">
+          <h2 id="evidence-title">Receiver evidence</h2>
+          <span class="evidence-freshness" id="evidence-freshness">NO SNAPSHOT</span>
+        </div>
+
+        <div class="evidence-summary" id="evidence-summary" aria-live="polite">
+          <span class="evidence-kicker" id="evidence-kicker">WAITING FOR RECEIVER EVIDENCE</span>
+          <p class="evidence-result" id="evidence-result">No delivery claim yet.</p>
+          <p class="evidence-detail" id="evidence-detail">The page needs one atomic runtime snapshot before actions are enabled.</p>
+        </div>
+
+        <section class="payload-panel" aria-labelledby="payload-title">
+          <div class="panel-label">
+            <span id="payload-title">RUN AUDIT RECORD</span>
+            <span id="payload-run">RUN · —</span>
+          </div>
+          <pre id="payload">{
+  "delivery_semantics": "at-least-once",
+  "verification": "pending"
+}</pre>
+        </section>
+
+        <section class="ack-panel" aria-labelledby="ack-title">
+          <div class="panel-label">
+            <span id="ack-title">LAST RECEIVER ACKNOWLEDGEMENT</span>
+            <span>RECEIVER</span>
+          </div>
+          <div class="ack-row"><span>RUN ID</span><b id="ack-run">—</b></div>
+          <div class="ack-row"><span>RECORD</span><b id="ack-record">—</b></div>
+          <div class="ack-row"><span>RECEIVER</span><b id="ack-state">WAITING</b></div>
+          <div class="ack-row"><span>AT</span><b id="ack-time">—</b></div>
+        </section>
+      </aside>
+    </section>
+
+    <section class="run-rail" aria-label="Run controls and verified result">
+      <div class="run-identity">
+        <span id="run-identity">RUN · — · SEED 424242 · DEMO 03</span>
+        <span>SYNTHETIC DATA · DETERMINISTIC RECEIVER FAULT · AT-LEAST-ONCE</span>
+      </div>
+      <p class="system-response" id="system-response" aria-live="polite">Waiting for the runtime’s first atomic snapshot.</p>
+      <div class="action-cluster">
+        <button class="primary-action" id="primary-action" type="button" disabled>Run 12-second outage</button>
+        <button class="reset-action" id="reset-action" type="button" hidden>Reset run</button>
+      </div>
+    </section>
+  </main>
+
+  <div class="stale-banner" id="stale-banner" role="status" hidden>Measurements paused.</div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var STALE_WARNING_MS = 2000;
+      var STALE_DISABLE_MS = 5000;
+      var POLL_INTERVAL_MS = 1000;
+      var PHASES = ["ready", "offline", "draining", "auditing", "terminal"];
+      var latestLiveSnapshot = null;
+      var frozenVerifiedSnapshot = null;
+      var activeRunId = null;
+      var latestSnapshotSeq = -1;
+      var lastSnapshotReceivedAt = 0;
+      var eventSource = null;
+      var fallbackPollTimer = null;
+      var connectionMode = "reconnecting";
+      var actionBusy = false;
+      var localActionError = "";
+      var currentDisplayPhase = "ready";
+
+      var elements = {
+        runtimeStatus: document.getElementById("runtime-status"),
+        runtimeCopy: document.getElementById("runtime-copy"),
+        cloudLink: document.getElementById("cloud-link"),
+        generated: document.getElementById("metric-generated"),
+        acknowledged: document.getElementById("metric-acknowledged"),
+        acknowledgedSource: document.getElementById("metric-ack-source"),
+        queue: document.getElementById("metric-queue"),
+        queueSource: document.getElementById("metric-queue-source"),
+        audit: document.getElementById("metric-audit"),
+        sourceNode: document.getElementById("source-node"),
+        sourceStatus: document.getElementById("source-status"),
+        sourceMeta: document.getElementById("source-meta"),
+        sourceEdge: document.getElementById("source-edge"),
+        sourceEdgeState: document.getElementById("source-edge-state"),
+        edgeNode: document.getElementById("edge-node"),
+        edgeStatus: document.getElementById("edge-status"),
+        edgeMeta: document.getElementById("edge-meta"),
+        queueMeter: document.getElementById("queue-meter"),
+        queueMeterFill: document.getElementById("queue-meter-fill"),
+        receiverEdge: document.getElementById("receiver-edge"),
+        receiverEdgeValue: document.getElementById("receiver-edge-value"),
+        receiverEdgeState: document.getElementById("receiver-edge-state"),
+        receiverNode: document.getElementById("receiver-node"),
+        receiverStatus: document.getElementById("receiver-status"),
+        receiverMeta: document.getElementById("receiver-meta"),
+        accessibleSource: document.getElementById("accessible-source"),
+        accessibleEdge: document.getElementById("accessible-edge"),
+        accessibleReceiver: document.getElementById("accessible-receiver"),
+        phaseSteps: Array.prototype.slice.call(document.querySelectorAll(".phase-step")),
+        terminalPhaseLabel: document.getElementById("terminal-phase-label"),
+        evidenceFreshness: document.getElementById("evidence-freshness"),
+        evidenceSummary: document.getElementById("evidence-summary"),
+        evidenceKicker: document.getElementById("evidence-kicker"),
+        evidenceResult: document.getElementById("evidence-result"),
+        evidenceDetail: document.getElementById("evidence-detail"),
+        payloadRun: document.getElementById("payload-run"),
+        payload: document.getElementById("payload"),
+        ackRun: document.getElementById("ack-run"),
+        ackTitle: document.getElementById("ack-title"),
+        ackRecord: document.getElementById("ack-record"),
+        ackState: document.getElementById("ack-state"),
+        ackTime: document.getElementById("ack-time"),
+        runIdentity: document.getElementById("run-identity"),
+        systemResponse: document.getElementById("system-response"),
+        primaryAction: document.getElementById("primary-action"),
+        resetAction: document.getElementById("reset-action"),
+        staleBanner: document.getElementById("stale-banner")
+      };
+
+      function cloneSnapshot(snapshot) {
+        return JSON.parse(JSON.stringify(snapshot));
+      }
+
+      function allAssertionsPass(snapshot) {
+        var assertions = snapshot.verification && snapshot.verification.assertions;
+        return Array.isArray(assertions) && assertions.length > 0 && assertions.every(function (assertion) {
+          return assertion.passed === true;
+        });
+      }
+
+      function isMeasuredCount(value) {
+        return value !== null && value !== undefined && Number.isFinite(Number(value));
+      }
+
+      function hasMeasuredLocalBuffer(snapshot) {
+        var control = snapshot && snapshot.control_plane ? snapshot.control_plane : {};
+        var pipeline = snapshot && snapshot.pipeline ? snapshot.pipeline : {};
+        var mode = snapshot && (snapshot.mode || control.mode) ? snapshot.mode || control.mode : "local";
+        return mode === "local" && control.state === "local" && pipeline.variant === "durable-sqlite" && pipeline.status === "running";
+      }
+
+      function terminalAudit(snapshot) {
+        var metrics = snapshot.metrics || {};
+        var evidence = snapshot.evidence || {};
+        var hasBoundedAudit =
+          isMeasuredCount(metrics.audit_high_water) &&
+          isMeasuredCount(metrics.audit_accepted_total) &&
+          isMeasuredCount(metrics.audit_acknowledged_total);
+        var highWater = hasBoundedAudit ? Number(metrics.audit_high_water) : Number(metrics.last_accepted_seq);
+        var firstSequence = isMeasuredCount(metrics.first_accepted_seq)
+          ? Number(metrics.first_accepted_seq)
+          : Array.isArray(evidence.accepted_sequence_range)
+            ? Number(evidence.accepted_sequence_range[0])
+            : null;
+        return {
+          admitted: hasBoundedAudit ? Number(metrics.audit_accepted_total) : Number(metrics.sent_total),
+          acknowledged: hasBoundedAudit ? Number(metrics.audit_acknowledged_total) : Number(metrics.acknowledged_total),
+          highWater: Number.isFinite(highWater) ? highWater : null,
+          range: Number.isFinite(firstSequence) && Number.isFinite(highWater) ? padSequence(firstSequence) + "–" + padSequence(highWater) : "—",
+          scope: evidence.audit_scope || "pipeline-accepted sequences in this controlled run",
+          bounded: hasBoundedAudit
+        };
+      }
+
+      function isFullyVerified(snapshot) {
+        if (!snapshot || snapshot.phase !== "verified") {
+          return false;
+        }
+        if (!snapshot.verification || snapshot.verification.state !== "verified") {
+          return false;
+        }
+        if (!allAssertionsPass(snapshot)) {
+          return false;
+        }
+        var audit = terminalAudit(snapshot);
+        return audit.bounded && audit.admitted > 0 && audit.admitted === audit.acknowledged;
+      }
+
+      function displayPhaseFor(snapshot) {
+        if (!snapshot) {
+          return "ready";
+        }
+        if (snapshot.phase === "failed") {
+          return "failed";
+        }
+        if (snapshot.phase === "verified") {
+          return isFullyVerified(snapshot) ? "verified" : "auditing";
+        }
+        return ["ready", "offline", "draining", "auditing"].indexOf(snapshot.phase) >= 0 ? snapshot.phase : "ready";
+      }
+
+      function formatCount(value) {
+        if (value === null || value === undefined || value === "") {
+          return "—";
+        }
+        var number = Number(value);
+        return Number.isFinite(number) ? new Intl.NumberFormat("en-US").format(number) : "—";
+      }
+
+      function padSequence(value) {
+        var number = Number(value);
+        return Number.isFinite(number) && number > 0 ? String(number).padStart(6, "0") : "—";
+      }
+
+      function formatRange(range) {
+        if (!Array.isArray(range) || range.length !== 2) {
+          return "—";
+        }
+        return padSequence(range[0]) + "–" + padSequence(range[1]);
+      }
+
+      function formatTimestamp(value) {
+        if (!value) {
+          return "—";
+        }
+        var date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+          return String(value);
+        }
+        return date.toISOString().replace("T", " ").replace("Z", "Z");
+      }
+
+      function shortRunId(runId) {
+        if (!runId) {
+          return "—";
+        }
+        return String(runId).slice(0, 8);
+      }
+
+      function setTone(element, tone) {
+        element.classList.remove("active", "warning", "fault", "verified", "failed");
+        if (tone) {
+          element.classList.add(tone);
+        }
+      }
+
+      function updatePhaseRail(phase) {
+        var currentIndex = phase === "failed" || phase === "verified" ? 4 : PHASES.indexOf(phase);
+        elements.terminalPhaseLabel.textContent = phase === "failed" ? "FAILED" : phase === "verified" ? "VERIFIED" : "VERIFIED / FAILED";
+        elements.phaseSteps.forEach(function (step, index) {
+          step.classList.remove("done", "current", "warning", "failed");
+          step.removeAttribute("aria-current");
+          if (index < currentIndex) {
+            step.classList.add("done");
+          }
+          if (index === currentIndex) {
+            step.setAttribute("aria-current", "step");
+            if (phase === "failed") {
+              step.classList.add("failed");
+            } else if (phase === "offline" || phase === "draining" || phase === "auditing") {
+              step.classList.add("warning");
+            } else if (phase === "verified") {
+              step.classList.add("done");
+            } else {
+              step.classList.add("current");
+            }
+          }
+        });
+      }
+
+      function makeAuditPayload(snapshot, phase) {
+        var metrics = snapshot.metrics || {};
+        var evidence = snapshot.evidence || {};
+        var bufferMeasured = hasMeasuredLocalBuffer(snapshot);
+        var base = {
+          delivery_semantics: "at-least-once"
+        };
+        if (phase === "offline") {
+          base.receiver_http_status = 503;
+          base[bufferMeasured ? "edge_admitted_range" : "pipeline_accepted_range"] = formatRange(evidence.accepted_sequence_range);
+          base.receiver_range = formatRange(evidence.receiver_sequence_range);
+          if (bufferMeasured) {
+            base.queue_current = Number(metrics.queued_total) || 0;
+          } else {
+            base.edge_buffer_state = "expected-but-unverified";
+          }
+          if (metrics.dropped_total === null || metrics.dropped_total === undefined) {
+            base.dropped_state = metrics.dropped_state || "not-measured-from-edge";
+          } else {
+            base.dropped_total = Number(metrics.dropped_total) || 0;
+          }
+        } else if (phase === "draining") {
+          base.destination = "restored";
+          if (bufferMeasured) {
+            base.replayed_total = Number(metrics.replayed_total) || 0;
+            base.queue_remaining = Number(metrics.queued_total) || 0;
+          } else {
+            base.edge_buffer_state = "expected-but-unverified";
+          }
+          base.receiver_range = formatRange(evidence.receiver_sequence_range);
+          base.verification = "pending";
+        } else if (phase === "auditing") {
+          base[bufferMeasured ? "edge_admitted_range" : "pipeline_accepted_range"] = formatRange(evidence.accepted_sequence_range);
+          base.receiver_range = formatRange(evidence.receiver_sequence_range);
+          if (bufferMeasured) {
+            base.queue_remaining = Number(metrics.queued_total) || 0;
+          } else {
+            base.edge_buffer_state = "expected-but-unverified";
+          }
+          base.verification = "receiver-audit-pending";
+        } else if (phase === "verified" || phase === "failed") {
+          var audit = terminalAudit(snapshot);
+          base.audit_scope = audit.scope;
+          base.audit_high_water = audit.highWater;
+          base.audited_sequence_range = audit.range;
+          base.audit_admitted_total = audit.admitted;
+          base.audit_acknowledged_total = audit.acknowledged;
+          if (bufferMeasured) {
+            base.replayed_total = Number(metrics.replayed_total) || 0;
+          } else {
+            base.edge_buffer_state = "expected-but-unverified";
+          }
+          base.missing_sequence_ids = Array.isArray(evidence.missing_sequence_ids) ? evidence.missing_sequence_ids : [];
+          base.duplicate_sequence_ids = Array.isArray(evidence.duplicate_sequence_ids) ? evidence.duplicate_sequence_ids : [];
+          base.live_totals_at_freeze = {
+            generated: Number(metrics.generated_total) || 0,
+            edge_admitted: Number(metrics.sent_total) || 0,
+            receiver_acknowledged: Number(metrics.acknowledged_total) || 0
+          };
+        } else {
+          base[bufferMeasured ? "edge_admitted_range" : "pipeline_accepted_range"] = formatRange(evidence.accepted_sequence_range);
+          base.receiver_range = formatRange(evidence.receiver_sequence_range);
+          if (bufferMeasured) {
+            base.queue_current = Number(metrics.queued_total) || 0;
+          } else {
+            base.edge_buffer_state = "expected-but-unverified";
+          }
+          base.verification = "pending";
+        }
+        return JSON.stringify(base, null, 2);
+      }
+
+      function updateMetrics(snapshot, phase) {
+        var metrics = snapshot.metrics || {};
+        var bufferMeasured = hasMeasuredLocalBuffer(snapshot);
+        var terminal = phase === "verified" || phase === "failed";
+        var audit = terminalAudit(snapshot);
+        elements.generated.textContent = formatCount(metrics.generated_total);
+        elements.acknowledged.textContent = formatCount(terminal ? audit.acknowledged : metrics.acknowledged_total);
+        elements.acknowledgedSource.textContent = terminal ? "SOURCE · RECEIVER AUDIT" : "SOURCE · RECEIVER";
+        elements.queue.textContent = bufferMeasured ? formatCount(metrics.queued_total) : "UNVERIFIED";
+        elements.queueSource.textContent = bufferMeasured ? "SOURCE · ADMISSION−ACK" : "EXPECTED · CLOUD UNVERIFIED";
+        setTone(elements.generated, "");
+        setTone(elements.acknowledged, phase === "verified" ? "active" : "");
+        setTone(elements.queue, bufferMeasured ? (Number(metrics.queued_total) > 0 ? "warning" : phase === "verified" ? "active" : "") : "");
+
+        if (phase === "verified" || phase === "failed") {
+          elements.audit.textContent = formatCount(metrics.missing_accepted_sequences) + " / " + formatCount(metrics.duplicate_successful_deliveries);
+          setTone(elements.audit, phase === "verified" ? "active" : "fault");
+        } else {
+          elements.audit.textContent = "PENDING";
+          setTone(elements.audit, phase === "offline" || phase === "draining" || phase === "auditing" ? "warning" : "");
+        }
+      }
+
+      function updateTopology(snapshot, phase) {
+        var metrics = snapshot.metrics || {};
+        var evidence = snapshot.evidence || {};
+        var bufferMeasured = hasMeasuredLocalBuffer(snapshot);
+        var generatedLast = metrics.last_generated_seq;
+        var acknowledgedLast = metrics.last_acknowledged_seq;
+        var queue = Number(metrics.queued_total) || 0;
+        var capacity = Math.max(Number(metrics.buffer_capacity) || 0, 1);
+        var utilization = Math.max(0, Math.min(queue / capacity, 1));
+        var droppedMeasured = metrics.dropped_total !== null && metrics.dropped_total !== undefined;
+        var dropped = droppedMeasured ? Number(metrics.dropped_total) || 0 : null;
+        var droppedCopy = droppedMeasured ? formatCount(dropped) : "not measured";
+        var audit = terminalAudit(snapshot);
+
+        elements.sourceStatus.textContent = phase === "verified" ? "RUN SNAPSHOT FROZEN" : "GENERATING";
+        elements.sourceMeta.textContent = generatedLast ? "seq through " + padSequence(generatedLast) : "waiting for first sequence";
+        elements.accessibleSource.textContent = "Synthetic sequence generator, " + elements.sourceStatus.textContent.toLowerCase() + ", " + elements.sourceMeta.textContent + ".";
+
+        setTone(elements.edgeNode, "");
+        setTone(elements.receiverNode, "");
+        elements.sourceEdge.classList.remove("warning");
+        elements.receiverEdge.classList.remove("warning");
+        elements.sourceEdgeState.textContent = "DIRECT DATA PLANE";
+
+        if (phase === "offline") {
+          setTone(elements.edgeNode, "warning");
+          setTone(elements.receiverNode, "warning");
+          elements.edgeStatus.textContent = "BUFFERING";
+          elements.receiverStatus.textContent = "HTTP 503 · SIMULATED";
+          elements.receiverMeta.textContent = acknowledgedLast ? "last ack " + padSequence(acknowledgedLast) : "no acknowledgement before fault";
+          elements.receiverEdge.classList.add("warning");
+          elements.receiverEdgeValue.textContent = "HTTP 503";
+          elements.receiverEdgeState.textContent = "DESTINATION OFFLINE";
+        } else if (phase === "draining") {
+          setTone(elements.edgeNode, queue > 0 ? "warning" : "active");
+          setTone(elements.receiverNode, "active");
+          elements.edgeStatus.textContent = "REPLAYING";
+          elements.receiverStatus.textContent = "ONLINE";
+          elements.receiverMeta.textContent = acknowledgedLast ? "acked through " + padSequence(acknowledgedLast) : "waiting for replay acknowledgement";
+          elements.receiverEdgeValue.textContent = formatCount(metrics.replayed_total) + " REPLAYED";
+          elements.receiverEdgeState.textContent = "LIVE + REPLAY";
+        } else if (phase === "auditing") {
+          setTone(elements.edgeNode, "active");
+          setTone(elements.receiverNode, "warning");
+          elements.edgeStatus.textContent = "QUEUE DRAINED";
+          elements.receiverStatus.textContent = "AUDITING";
+          elements.receiverMeta.textContent = "comparing receiver sequence IDs";
+          elements.receiverEdgeValue.textContent = formatCount(metrics.acknowledged_total) + " ACKS";
+          elements.receiverEdgeState.textContent = "AUDIT PENDING";
+        } else if (phase === "verified") {
+          setTone(elements.edgeNode, "active");
+          setTone(elements.receiverNode, "active");
+          elements.edgeStatus.textContent = "QUEUE EMPTY";
+          elements.receiverStatus.textContent = "VERIFIED";
+          elements.receiverMeta.textContent = audit.highWater ? "audited through " + padSequence(audit.highWater) : "receiver audit passed";
+          elements.receiverEdgeValue.textContent = formatCount(audit.acknowledged) + " AUDITED ACKS";
+          elements.receiverEdgeState.textContent = "RECEIVER VERIFIED";
+        } else if (phase === "failed") {
+          setTone(elements.edgeNode, queue > 0 ? "warning" : "active");
+          setTone(elements.receiverNode, "fault");
+          elements.edgeStatus.textContent = queue > 0 ? "QUEUE NOT EMPTY" : "QUEUE EMPTY";
+          elements.receiverStatus.textContent = "AUDIT FAILED";
+          elements.receiverMeta.textContent = audit.highWater ? "audit through " + padSequence(audit.highWater) + " failed" : "delivery integrity not verified";
+          elements.receiverEdgeValue.textContent = "AUDIT FAILED";
+          elements.receiverEdgeState.textContent = "NO SUCCESS CLAIM";
+        } else {
+          setTone(elements.edgeNode, "active");
+          setTone(elements.receiverNode, "active");
+          elements.edgeStatus.textContent = queue > 0 ? "CATCHING UP" : "HEALTHY";
+          elements.receiverStatus.textContent = "ONLINE";
+          elements.receiverMeta.textContent = acknowledgedLast ? "acked through " + padSequence(acknowledgedLast) : "waiting for first acknowledgement";
+          elements.receiverEdgeValue.textContent = "ACKNOWLEDGING";
+          elements.receiverEdgeState.textContent = "DESTINATION ONLINE";
+        }
+
+        if (!bufferMeasured) {
+          setTone(elements.edgeNode, "");
+          elements.edgeStatus.textContent = "UNVERIFIED";
+          if (phase === "draining") {
+            elements.receiverEdgeValue.textContent = formatCount(metrics.acknowledged_total) + " ACKS";
+            elements.receiverEdgeState.textContent = "RECEIVER RECOVERY OBSERVED";
+          } else if (phase === "auditing") {
+            elements.receiverEdgeValue.textContent = formatCount(metrics.acknowledged_total) + " ACKS";
+            elements.receiverEdgeState.textContent = "RECEIVER AUDIT";
+          }
+        }
+
+        elements.edgeMeta.textContent = bufferMeasured
+          ? "queue " + formatCount(queue) + " / " + formatCount(capacity) + " · dropped " + droppedCopy
+          : "Expected durable SQLite buffer · Cloud execution unverified";
+        elements.queueMeter.setAttribute("aria-valuemax", String(capacity));
+        elements.queueMeter.setAttribute("aria-valuenow", bufferMeasured ? String(queue) : "0");
+        elements.queueMeter.setAttribute("aria-valuetext", bufferMeasured ? formatCount(queue) + " records queued of " + formatCount(capacity) : "Expected Edge queue; Cloud execution unverified");
+        elements.queueMeterFill.style.transform = "scaleX(" + (bufferMeasured ? utilization.toFixed(5) : "0") + ")";
+        elements.accessibleEdge.textContent = bufferMeasured
+          ? "Expanso Edge durable buffer, " + elements.edgeStatus.textContent.toLowerCase() + ", " + formatCount(queue) + " queued and dropped " + droppedCopy + "."
+          : "Expanso Edge durable buffer expected, Cloud execution unverified.";
+        elements.accessibleReceiver.textContent =
+          "Demo receiver, " +
+          elements.receiverStatus.textContent.toLowerCase() +
+          ", " +
+          elements.receiverMeta.textContent +
+          ".";
+
+        if (Array.isArray(evidence.receiver_sequence_range) && phase === "ready") {
+          elements.receiverMeta.textContent = "acked range " + formatRange(evidence.receiver_sequence_range);
+        }
+      }
+
+      function updateEvidence(snapshot, phase) {
+        var metrics = snapshot.metrics || {};
+        var evidence = snapshot.evidence || {};
+        var bufferMeasured = hasMeasuredLocalBuffer(snapshot);
+        var lastAck = Array.isArray(evidence.acknowledgements) && evidence.acknowledgements.length ? evidence.acknowledgements[0] : null;
+        var missing = Number(metrics.missing_accepted_sequences) || 0;
+        var duplicates = Number(metrics.duplicate_successful_deliveries) || 0;
+        var liveAdmitted = Number(metrics.sent_total) || 0;
+        var liveAcknowledged = Number(metrics.acknowledged_total) || 0;
+        var audit = terminalAudit(snapshot);
+
+        setTone(elements.evidenceSummary, "");
+        setTone(elements.systemResponse, "");
+
+        if (phase === "offline") {
+          setTone(elements.evidenceSummary, "warning");
+          setTone(elements.systemResponse, "warning");
+          elements.evidenceKicker.textContent = "SIMULATED DESTINATION FAULT · REAL HTTP 503";
+          elements.evidenceResult.textContent = bufferMeasured
+            ? "The receiver is rejecting writes. The Edge queue is rising."
+            : "The receiver is rejecting writes. Edge buffering is expected but unverified.";
+          elements.evidenceDetail.textContent = bufferMeasured
+            ? metrics.dropped_total === null || metrics.dropped_total === undefined
+              ? "Generated continues. Receiver acknowledgements pause. Edge drop telemetry is not measured in this runtime."
+              : "Generated continues. Receiver acknowledgements pause. Dropped remains " + formatCount(metrics.dropped_total) + "."
+            : "Generated continues and receiver acknowledgements pause. Cloud execution, Edge queue, and drop state are unverified.";
+          elements.systemResponse.textContent = bufferMeasured
+            ? "Receiver returning HTTP 503. Expanso Edge is buffering locally."
+            : "Receiver HTTP 503 observed. Expected durable SQLite buffering is unverified in Cloud.";
+        } else if (phase === "draining") {
+          setTone(elements.evidenceSummary, "warning");
+          setTone(elements.systemResponse, "warning");
+          elements.evidenceKicker.textContent = "DESTINATION RESTORED · DRAIN IN PROGRESS";
+          elements.evidenceResult.textContent = bufferMeasured ? "Replaying queued sequence IDs." : "Receiver acknowledgements resumed; replay state is unverified.";
+          elements.evidenceDetail.textContent = bufferMeasured
+            ? formatCount(metrics.queued_total) + " admitted records still await receiver acknowledgement."
+            : "Receiver recovery is observed. Cloud Edge queue and replay execution remain unverified.";
+          elements.systemResponse.textContent = bufferMeasured
+            ? "Destination restored. Replaying queued sequence IDs."
+            : "Destination restored. Receiver acknowledgements resumed; Cloud replay remains unverified.";
+        } else if (phase === "auditing") {
+          setTone(elements.evidenceSummary, "warning");
+          setTone(elements.systemResponse, "warning");
+          elements.evidenceKicker.textContent = bufferMeasured ? "QUEUE DRAINED · RECEIVER AUDIT PENDING" : "RECEIVER AUDIT PENDING · EDGE QUEUE UNVERIFIED";
+          elements.evidenceResult.textContent = "Comparing admitted and acknowledged sequence IDs.";
+          elements.evidenceDetail.textContent = "The page will not record success until every receiver-side assertion passes.";
+          elements.systemResponse.textContent = bufferMeasured ? "Queue drained. Auditing receiver sequence IDs…" : "Auditing receiver sequence IDs. Cloud Edge queue state remains unverified.";
+        } else if (phase === "verified") {
+          setTone(elements.evidenceSummary, "verified");
+          setTone(elements.systemResponse, "verified");
+          elements.evidenceKicker.textContent = "OBSERVED THIS RUN · AT-LEAST-ONCE TRANSPORT";
+          elements.evidenceResult.textContent = formatCount(audit.admitted) + " records in scope. " + formatCount(audit.acknowledged) + " acknowledged.";
+          elements.evidenceDetail.textContent =
+            "Audited through seq " +
+            padSequence(audit.highWater) +
+            ": " +
+            formatCount(missing) +
+            " missing, " +
+            formatCount(duplicates) +
+            " duplicates. Live totals froze separately at " +
+            formatCount(liveAdmitted) +
+            " / " +
+            formatCount(liveAcknowledged) +
+            ".";
+          elements.systemResponse.textContent = bufferMeasured
+            ? "Observed this run through seq " + padSequence(audit.highWater) + ": " + formatCount(audit.admitted) + " admitted at Edge, " + formatCount(audit.acknowledged) + " acknowledged, " + formatCount(missing) + " missing, " + formatCount(duplicates) + " duplicates. At-least-once transport."
+            : "Observed receiver audit through seq " + padSequence(audit.highWater) + ": " + formatCount(audit.admitted) + " pipeline admissions, " + formatCount(audit.acknowledged) + " acknowledged, " + formatCount(missing) + " missing, " + formatCount(duplicates) + " duplicates. Cloud Edge buffer execution remains unverified.";
+        } else if (phase === "failed") {
+          setTone(elements.evidenceSummary, "failed");
+          setTone(elements.systemResponse, "failed");
+          elements.evidenceKicker.textContent = "RECEIVER AUDIT FAILED";
+          elements.evidenceResult.textContent = "Delivery integrity could not be verified.";
+          elements.evidenceDetail.textContent =
+            "Audit through seq " +
+            padSequence(audit.highWater) +
+            ": " +
+            formatCount(missing) +
+            " missing, " +
+            formatCount(duplicates) +
+            " duplicate. No success claim was recorded.";
+          elements.systemResponse.textContent =
+            "Delivery integrity could not be verified through seq " +
+            padSequence(audit.highWater) +
+            ": " +
+            formatCount(missing) +
+            " missing, " +
+            formatCount(duplicates) +
+            " duplicate.";
+        } else {
+          elements.evidenceKicker.textContent = "PRE-RUN RECEIVER FLOW CHECK";
+          elements.evidenceResult.textContent = bufferMeasured
+            ? formatCount(liveAcknowledged) + " receiver acknowledgements. Edge queue " + formatCount(metrics.queued_total) + "."
+            : formatCount(liveAcknowledged) + " receiver acknowledgements. Edge queue UNVERIFIED.";
+          elements.evidenceDetail.textContent = bufferMeasured
+            ? "Destination healthy. Run the deterministic outage when the counts are caught up."
+            : "Receiver flow is observed. Cloud Edge execution and durable buffer state are unverified.";
+          elements.systemResponse.textContent = bufferMeasured
+            ? "Destination healthy. Generated and acknowledged counts are live."
+            : "Receiver acknowledgements are live. Expected durable SQLite behavior is unverified in Cloud.";
+        }
+
+        elements.payload.textContent = makeAuditPayload(snapshot, phase);
+        elements.payloadRun.textContent = "RUN · " + shortRunId(snapshot.run_id);
+        elements.ackRun.textContent = shortRunId(snapshot.run_id);
+        elements.ackTitle.textContent =
+          phase === "verified" || phase === "failed"
+            ? "AUDIT HIGH-WATER ACKNOWLEDGEMENT"
+            : "LAST RECEIVER ACKNOWLEDGEMENT";
+        elements.ackRecord.textContent =
+          phase === "verified" || phase === "failed"
+            ? audit.highWater
+              ? "seq-" + padSequence(audit.highWater)
+              : "—"
+            : lastAck && lastAck.sequence
+              ? "seq-" + padSequence(lastAck.sequence)
+              : "—";
+        elements.ackTime.textContent =
+          phase === "verified" || phase === "failed"
+            ? formatTimestamp(snapshot.server_time)
+            : lastAck
+              ? formatTimestamp(lastAck.acknowledged_at)
+              : "—";
+        elements.ackState.textContent = phase === "verified" ? "VERIFIED" : phase === "failed" ? "AUDIT FAILED" : phase === "offline" ? "LAST BEFORE 503" : lastAck ? "ACKNOWLEDGED" : "WAITING";
+        setTone(elements.ackState, phase === "verified" ? "active" : phase === "failed" ? "fault" : phase === "offline" ? "warning" : "");
+      }
+
+      function updateAction(snapshot, phase) {
+        var age = lastSnapshotReceivedAt ? Date.now() - lastSnapshotReceivedAt : Number.POSITIVE_INFINITY;
+        var staleDisabled = age >= STALE_DISABLE_MS;
+        var actionEnabled = Boolean(snapshot && snapshot.action && snapshot.action.enabled);
+        var terminal = phase === "verified" || phase === "failed";
+        elements.primaryAction.hidden = terminal;
+        elements.resetAction.hidden = !terminal;
+
+        if (terminal) {
+          elements.resetAction.disabled = actionBusy || staleDisabled;
+          elements.resetAction.textContent = actionBusy ? "Resetting…" : "Reset run";
+          return;
+        }
+
+        elements.primaryAction.disabled = actionBusy || staleDisabled || phase !== "ready" || !actionEnabled;
+        elements.primaryAction.setAttribute("aria-busy", actionBusy ? "true" : "false");
+        if (actionBusy) {
+          elements.primaryAction.textContent = "Starting outage…";
+        } else if (phase === "offline") {
+          elements.primaryAction.textContent = "Receiver offline…";
+        } else if (phase === "draining") {
+          elements.primaryAction.textContent = "Draining queue…";
+        } else if (phase === "auditing") {
+          elements.primaryAction.textContent = "Auditing receiver…";
+        } else {
+          elements.primaryAction.textContent = snapshot && snapshot.action && snapshot.action.label ? snapshot.action.label : "Run 12-second outage";
+        }
+      }
+
+      function renderSnapshot(snapshot) {
+        var phase = displayPhaseFor(snapshot);
+        currentDisplayPhase = phase;
+        var displaySnapshot = frozenVerifiedSnapshot && frozenVerifiedSnapshot.run_id === snapshot.run_id ? frozenVerifiedSnapshot : snapshot;
+        phase = displayPhaseFor(displaySnapshot);
+        currentDisplayPhase = phase;
+
+        updateMetrics(displaySnapshot, phase);
+        updateTopology(displaySnapshot, phase);
+        updatePhaseRail(phase);
+        updateEvidence(displaySnapshot, phase);
+        updateAction(displaySnapshot, phase);
+
+        elements.runIdentity.textContent = "RUN " + shortRunId(displaySnapshot.run_id) + " · SEED " + String(displaySnapshot.seed || "—") + " · DEMO 03";
+        elements.evidenceFreshness.textContent = "SNAPSHOT " + formatCount(displaySnapshot.snapshot_seq);
+
+        var cloudUrl = displaySnapshot.control_plane && displaySnapshot.control_plane.cloud_url;
+        if (typeof cloudUrl === "string" && /^https:\/\//.test(cloudUrl)) {
+          elements.cloudLink.href = cloudUrl;
+        }
+
+        if (localActionError) {
+          setTone(elements.systemResponse, "failed");
+          elements.systemResponse.textContent = localActionError;
+        }
+      }
+
+      function applySnapshot(snapshot) {
+        if (!snapshot || snapshot.demo_id !== "outage-buffer-replay" || !snapshot.run_id) {
+          return;
+        }
+
+        if (activeRunId !== snapshot.run_id) {
+          activeRunId = snapshot.run_id;
+          latestSnapshotSeq = -1;
+          frozenVerifiedSnapshot = null;
+          actionBusy = false;
+          localActionError = "";
+        }
+
+        var snapshotSeq = Number(snapshot.snapshot_seq);
+        if (!Number.isFinite(snapshotSeq) || snapshotSeq <= latestSnapshotSeq) {
+          return;
+        }
+
+        latestSnapshotSeq = snapshotSeq;
+        latestLiveSnapshot = snapshot;
+        lastSnapshotReceivedAt = Date.now();
+
+        if (!frozenVerifiedSnapshot && isFullyVerified(snapshot)) {
+          frozenVerifiedSnapshot = cloneSnapshot(snapshot);
+        }
+
+        if (snapshot.phase !== "ready") {
+          actionBusy = false;
+        }
+        renderSnapshot(snapshot);
+        updateFreshness();
+      }
+
+      async function fetchSnapshot() {
+        var response = await fetch("/api/snapshot", {cache: "no-store"});
+        if (!response.ok) {
+          throw new Error("Snapshot request returned HTTP " + response.status);
+        }
+        applySnapshot(await response.json());
+      }
+
+      function startFallbackPolling() {
+        if (fallbackPollTimer !== null) {
+          return;
+        }
+        fallbackPollTimer = window.setInterval(function () {
+          fetchSnapshot().catch(function () {
+            connectionMode = "reconnecting";
+            updateFreshness();
+          });
+        }, POLL_INTERVAL_MS);
+      }
+
+      function stopFallbackPolling() {
+        if (fallbackPollTimer !== null) {
+          window.clearInterval(fallbackPollTimer);
+          fallbackPollTimer = null;
+        }
+      }
+
+      function connectEvents() {
+        eventSource = new EventSource("/api/events");
+        eventSource.addEventListener("snapshot", function (event) {
+          try {
+            applySnapshot(JSON.parse(event.data));
+          } catch (error) {
+            connectionMode = "reconnecting";
+            updateFreshness();
+          }
+        });
+        eventSource.addEventListener("open", function () {
+          connectionMode = "connected";
+          stopFallbackPolling();
+          updateFreshness();
+        });
+        eventSource.addEventListener("error", function () {
+          connectionMode = "reconnecting";
+          startFallbackPolling();
+          updateFreshness();
+        });
+      }
+
+      function updateFreshness() {
+        var age = lastSnapshotReceivedAt ? Date.now() - lastSnapshotReceivedAt : Number.POSITIVE_INFINITY;
+        var stale = age >= STALE_WARNING_MS;
+        var actionStale = age >= STALE_DISABLE_MS;
+        var ageCopy = Number.isFinite(age) ? age < 1000 ? Math.round(age) + " ms ago" : (age / 1000).toFixed(1) + " s ago" : "waiting for snapshot";
+
+        elements.runtimeStatus.classList.remove("connected", "reconnecting", "stale");
+        if (stale) {
+          elements.runtimeStatus.classList.add("stale");
+          elements.runtimeCopy.textContent = "STALE · " + ageCopy;
+          elements.staleBanner.hidden = false;
+          elements.staleBanner.textContent = "Measurements paused. Last receiver update " + ageCopy + (actionStale ? ". Runtime actions disabled." : ".");
+        } else {
+          elements.runtimeStatus.classList.add(connectionMode === "connected" ? "connected" : "reconnecting");
+          elements.runtimeCopy.textContent = (connectionMode === "connected" ? "CONNECTED · " : "RECONNECTING · ") + ageCopy;
+          elements.staleBanner.hidden = true;
+        }
+
+        if (latestLiveSnapshot) {
+          updateAction(frozenVerifiedSnapshot || latestLiveSnapshot, currentDisplayPhase);
+        }
+      }
+
+      function makeIdempotencyKey(prefix) {
+        var random = window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : String(Date.now()) + "-" + String(Math.random()).slice(2);
+        return prefix + "-" + random;
+      }
+
+      async function runOutage() {
+        if (!latestLiveSnapshot || currentDisplayPhase !== "ready" || elements.primaryAction.disabled) {
+          return;
+        }
+        actionBusy = true;
+        localActionError = "";
+        updateAction(latestLiveSnapshot, currentDisplayPhase);
+        try {
+          var response = await fetch("/api/actions/run-outage", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Idempotency-Key": makeIdempotencyKey("outage")
+            },
+            body: "{}"
+          });
+          var result = await response.json();
+          if (!response.ok || result.accepted !== true) {
+            throw new Error(result.reason || "The runtime did not accept the outage action.");
+          }
+        } catch (error) {
+          actionBusy = false;
+          localActionError = "The outage could not start. " + (error && error.message ? error.message : "Check the runtime connection.");
+          renderSnapshot(latestLiveSnapshot);
+        }
+      }
+
+      async function resetRun() {
+        if (!latestLiveSnapshot || elements.resetAction.disabled) {
+          return;
+        }
+        actionBusy = true;
+        localActionError = "";
+        updateAction(frozenVerifiedSnapshot || latestLiveSnapshot, currentDisplayPhase);
+        try {
+          var response = await fetch("/api/reset", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: "{}"
+          });
+          if (!response.ok) {
+            throw new Error("Reset returned HTTP " + response.status);
+          }
+          await fetchSnapshot();
+        } catch (error) {
+          actionBusy = false;
+          localActionError = "The run could not reset. " + (error && error.message ? error.message : "Check the runtime connection.");
+          renderSnapshot(latestLiveSnapshot);
+        }
+      }
+
+      elements.primaryAction.addEventListener("click", runOutage);
+      elements.resetAction.addEventListener("click", resetRun);
+
+      fetchSnapshot().catch(function () {
+        connectionMode = "reconnecting";
+        updateFreshness();
+      }).finally(function () {
+        connectEvents();
+      });
+
+      window.setInterval(updateFreshness, 250);
+    }());
+  </script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+name: demo-outage-buffer-replay
+namespace: default
+type: pipeline
+labels: {demo: outage-buffer-replay}
+selector:
+  match_labels: {demo: outage-buffer-replay, role: remote-site}
+config:
+  input:
+    http_server: {address: "0.0.0.0:8080", path: /ingest, allowed_verbs: [POST], timeout: 5s}
+  buffer:
+    sqlite: {path: "${BUFFER_PATH:/data/outage-buffer.db}"}
+  pipeline: {threads: 1, processors: []}
+  output:
+    http_client:
+      url: ${DEMO_SINK_URL:http://host.docker.internal:19480/api/sink/events}
+      verb: POST
+      timeout: 1s
+      retry_period: 250ms
+      max_retry_backoff: 2s
+      retries: 3
+      max_in_flight: 1

@@ -1,0 +1,30 @@
+name: demo-signal-not-noise
+namespace: default
+type: pipeline
+labels:
+  demo: signal-not-noise
+  variant: filtered
+selector:
+  match_labels:
+    demo: signal-not-noise
+    role: demo-edge
+config:
+  input:
+    http_server:
+      address: 0.0.0.0:8080
+      path: /ingest
+      allowed_verbs: [POST]
+      timeout: 5s
+  pipeline:
+    threads: 1
+    processors:
+      - mapping: 'root = if ["WARN", "ERROR"].contains(this.level) { this } else { deleted() }'
+  output:
+    http_client:
+      url: ${DEMO_SINK_URL:http://host.docker.internal:19440/api/sink/logs}
+      verb: POST
+      timeout: 2s
+      retry_period: 250ms
+      max_retry_backoff: 2s
+      retries: 3
+      max_in_flight: 1

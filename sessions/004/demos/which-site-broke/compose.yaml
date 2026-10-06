@@ -1,0 +1,54 @@
+name: expanso-demo-which-site-broke
+x-pipeline: &pipeline
+  image: ghcr.io/warpstreamlabs/bento@sha256:f9c60f8890f5c9e770a79497cc3fb44346bbc25ca8949a5a87bf000b14df4999
+  command: ["streams", "--prefix-stream-endpoints=false", "/streams/active.yaml"]
+  volumes:
+    - ./pipelines/${DEMO_VARIANT:-baseline}.runtime.yaml:/streams/active.yaml:ro
+  labels: {io.expanso.demo: which-site-broke}
+  depends_on:
+    demo-api: {condition: service_healthy}
+services:
+  demo-api:
+    build: .
+    environment:
+      DEMO_MODE: ${DEMO_MODE:-local}
+      DEMO_VARIANT: ${DEMO_VARIANT:-baseline}
+      PIPELINE_URLS: ${PIPELINE_URLS:-http://pipeline-01:8080/ingest,http://pipeline-02:8080/ingest,http://pipeline-03:8080/ingest,http://pipeline-04:8080/ingest,http://pipeline-05:8080/ingest,http://pipeline-06:8080/ingest,http://pipeline-07:8080/ingest,http://pipeline-08:8080/ingest,http://pipeline-09:8080/ingest,http://pipeline-10:8080/ingest}
+      SIMULATOR_ENABLED: "true"
+    ports: ["127.0.0.1:19450:8000"]
+    labels: {io.expanso.demo: which-site-broke}
+    healthcheck:
+      test: ["CMD", "uv", "run", "--no-sync", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+  pipeline-01:
+    <<: *pipeline
+    environment: {DEMO_SINK_URL: "http://demo-api:8000/api/sink/events", DEMO_NODE_ID: edge-01, DEMO_SITE_ID: wind-west, DEMO_ASSET_ID: turbine-01, DEMO_REGION: us-west, DEMO_APP_VERSION: 2.4.1}
+  pipeline-02:
+    <<: *pipeline
+    environment: {DEMO_SINK_URL: "http://demo-api:8000/api/sink/events", DEMO_NODE_ID: edge-02, DEMO_SITE_ID: wind-west, DEMO_ASSET_ID: turbine-02, DEMO_REGION: us-west, DEMO_APP_VERSION: 2.4.1}
+  pipeline-03:
+    <<: *pipeline
+    environment: {DEMO_SINK_URL: "http://demo-api:8000/api/sink/events", DEMO_NODE_ID: edge-03, DEMO_SITE_ID: wind-west, DEMO_ASSET_ID: turbine-03, DEMO_REGION: us-west, DEMO_APP_VERSION: 2.4.1}
+  pipeline-04:
+    <<: *pipeline
+    environment: {DEMO_SINK_URL: "http://demo-api:8000/api/sink/events", DEMO_NODE_ID: edge-04, DEMO_SITE_ID: wind-west, DEMO_ASSET_ID: turbine-04, DEMO_REGION: us-west, DEMO_APP_VERSION: 2.4.1}
+  pipeline-05:
+    <<: *pipeline
+    environment: {DEMO_SINK_URL: "http://demo-api:8000/api/sink/events", DEMO_NODE_ID: edge-05, DEMO_SITE_ID: wind-west, DEMO_ASSET_ID: turbine-05, DEMO_REGION: us-west, DEMO_APP_VERSION: 2.4.1}
+  pipeline-06:
+    <<: *pipeline
+    environment: {DEMO_SINK_URL: "http://demo-api:8000/api/sink/events", DEMO_NODE_ID: edge-06, DEMO_SITE_ID: wind-west, DEMO_ASSET_ID: turbine-06, DEMO_REGION: us-west, DEMO_APP_VERSION: 2.4.1}
+  pipeline-07:
+    <<: *pipeline
+    environment: {DEMO_SINK_URL: "http://demo-api:8000/api/sink/events", DEMO_NODE_ID: edge-07, DEMO_SITE_ID: wind-west, DEMO_ASSET_ID: turbine-07, DEMO_REGION: us-west, DEMO_APP_VERSION: 1.8.3}
+  pipeline-08:
+    <<: *pipeline
+    environment: {DEMO_SINK_URL: "http://demo-api:8000/api/sink/events", DEMO_NODE_ID: edge-08, DEMO_SITE_ID: wind-west, DEMO_ASSET_ID: turbine-08, DEMO_REGION: us-west, DEMO_APP_VERSION: 2.4.1}
+  pipeline-09:
+    <<: *pipeline
+    environment: {DEMO_SINK_URL: "http://demo-api:8000/api/sink/events", DEMO_NODE_ID: edge-09, DEMO_SITE_ID: wind-west, DEMO_ASSET_ID: turbine-09, DEMO_REGION: us-west, DEMO_APP_VERSION: 2.4.1}
+  pipeline-10:
+    <<: *pipeline
+    environment: {DEMO_SINK_URL: "http://demo-api:8000/api/sink/events", DEMO_NODE_ID: edge-10, DEMO_SITE_ID: wind-west, DEMO_ASSET_ID: turbine-10, DEMO_REGION: us-west, DEMO_APP_VERSION: 2.4.1}

@@ -1,0 +1,21 @@
+input:
+  http_server:
+    address: 0.0.0.0:8080
+    path: /ingest
+    allowed_verbs: [POST]
+    timeout: 5s
+buffer:
+  sqlite:
+    path: ${BUFFER_PATH:/runtime/outage-buffer.db}
+pipeline:
+  threads: 1
+  processors: []
+output:
+  http_client:
+    url: ${DEMO_SINK_URL:http://demo-api:8000/api/sink/events}
+    verb: POST
+    timeout: 1s
+    retry_period: 250ms
+    max_retry_backoff: 2s
+    retries: 3
+    max_in_flight: 1

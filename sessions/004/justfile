@@ -1,0 +1,39 @@
+# Pipeline Office Hours #00004 - all three demos from one place.
+#
+# Each demo keeps its own justfile and is the authority on its own lifecycle;
+# this file only fans out, so a target here never does anything the demo's own
+# target would not do. `mode` is passed straight through: "local" rehearses on
+# this machine, "cloud" runs against Expanso Cloud and needs each demo's .env.
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+demos := "signal-not-noise outage-buffer-replay which-site-broke"
+
+# Pull images and prebuild so nothing downloads on air.
+warm:
+    for d in {{demos}}; do echo "== warm $d"; just -d demos/$d -f demos/$d/justfile warm; done
+
+# Config-only checks; safe to run any time.
+validate:
+    for d in {{demos}}; do echo "== validate $d"; just -d demos/$d -f demos/$d/justfile validate; done
+
+# Start all three in their baseline (pre-fix) state.
+# Pages: signal 127.0.0.1:19440, which-site-broke :19450, outage :19480.
+up mode="local":
+    for d in {{demos}}; do echo "== start $d ({{mode}})"; just -d demos/$d -f demos/$d/justfile start "{{mode}}" baseline; done
+    just status
+
+status:
+    for d in {{demos}}; do echo "== $d"; just -d demos/$d -f demos/$d/justfile status; done
+
+# Stop everything, then prove it is actually gone. teardown-check is the part
+# that matters after a Cloud run: a stopped container is not a stopped job.
+down:
+    for d in {{demos}}; do echo "== stop $d"; just -d demos/$d -f demos/$d/justfile stop || true; done
+    for d in {{demos}}; do echo "== teardown-check $d"; just -d demos/$d -f demos/$d/justfile teardown-check; done
+
+test:
+    for d in {{demos}}; do echo "== test $d"; just -d demos/$d -f demos/$d/justfile test; done
+
+logs:
+    for d in {{demos}}; do echo "== logs $d"; just -d demos/$d -f demos/$d/justfile logs; done

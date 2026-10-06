@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Signal, not noise · Expanso live proof</title>
+  <style>
+    @font-face { font-family: "IBM Plex Sans"; src: url("/assets/fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2"); font-style: normal; font-weight: 400; font-display: swap; }
+    @font-face { font-family: "IBM Plex Sans"; src: url("/assets/fonts/ibm-plex-sans-latin-500-normal.woff2") format("woff2"); font-style: normal; font-weight: 500; font-display: swap; }
+    @font-face { font-family: "IBM Plex Mono"; src: url("/assets/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2"); font-style: normal; font-weight: 400; font-display: swap; }
+    @font-face { font-family: "IBM Plex Mono"; src: url("/assets/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2"); font-style: normal; font-weight: 500; font-display: swap; }
+
+    :root {
+      color-scheme: dark;
+      --carbon: #0b0e12;
+      --surface-1: #11151a;
+      --surface-2: #171b20;
+      --surface-3: #1f242a;
+      --slate: #30353b;
+      --slate-strong: #454c54;
+      --snow: #dedede;
+      --platinum: #bababb;
+      --ash: #818284;
+      --steel: #5d5e61;
+      --active: #00d892;
+      --active-bg: #002923;
+      --active-dim: #005441;
+      --warning: #f4b740;
+      --warning-bg: #2e240f;
+      --fault: #ff6b6b;
+      --fault-bg: #341617;
+      --sans: "IBM Plex Sans", "Helvetica Neue", sans-serif;
+      --mono: "IBM Plex Mono", "SFMono-Regular", monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { width: 100%; min-height: 100%; margin: 0; background: var(--carbon); }
+    body { color: var(--platinum); font-family: var(--sans); font-size: 14px; line-height: 1.45; }
+    button, a { font: inherit; }
+    button { border-radius: 1px; }
+    button:focus-visible, a:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--carbon), 0 0 0 4px var(--active); }
+    button:disabled { cursor: not-allowed; opacity: .48; }
+
+    .app { min-height: 100svh; display: grid; grid-template-rows: 56px minmax(0, 1fr); }
+    .header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px; padding: 0 32px; border-bottom: 1px solid var(--slate); }
+    .brand, .control-plane, .runtime, .eyebrow, .label, .source, .node-meta, .state, .edge-copy, .rail-meta, .proof-kicker, .evidence-meta, code, pre { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+    .brand { color: var(--snow); font-weight: 500; letter-spacing: .04em; white-space: nowrap; }
+    .brand span { margin-left: 14px; color: var(--ash); font-size: 11px; font-weight: 400; }
+    .control-plane { display: flex; align-items: center; gap: 10px; color: var(--ash); font-size: 11px; letter-spacing: .05em; }
+    .control-plane b { color: var(--platinum); font-weight: 500; }
+    .divider { color: var(--slate-strong); }
+    .runtime { justify-self: end; display: flex; align-items: center; gap: 9px; color: var(--platinum); font-size: 11px; white-space: nowrap; }
+    .runtime-square { width: 7px; height: 7px; background: var(--active); }
+    .runtime.stale .runtime-square { background: var(--warning); }
+    .cloud-link { min-height: 44px; display: inline-flex; align-items: center; margin-left: 8px; color: var(--platinum); text-decoration: underline; text-underline-offset: 3px; }
+
+    .canvas { min-height: 0; display: grid; grid-template-rows: 68px minmax(0, 1fr) 100px; gap: 16px; padding: 20px 32px 28px; }
+    .title-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 24px; }
+    .eyebrow { margin: 0 0 5px; color: var(--ash); font-size: 11px; line-height: 16px; letter-spacing: .08em; text-transform: uppercase; }
+    h1 { margin: 0; color: var(--snow); font-size: clamp(30px, 2.2vw, 40px); line-height: 1.08; font-weight: 400; text-wrap: balance; }
+    .disclosure { max-width: 510px; margin: 0 0 4px; color: var(--ash); text-align: right; }
+    .disclosure strong { display: block; color: var(--platinum); font-weight: 500; }
+
+    .workspace { min-height: 0; display: grid; grid-template-columns: minmax(0, 2.06fr) minmax(360px, 1fr); gap: 16px; }
+    .stage, .evidence, .run-rail { min-width: 0; border: 1px solid var(--slate); background: var(--surface-1); }
+    .stage { display: grid; grid-template-rows: 72px minmax(0, 1fr) 96px; overflow: hidden; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 1px solid var(--slate); }
+    .metric { min-width: 0; display: grid; align-content: center; gap: 3px; padding: 9px 14px; border-right: 1px solid var(--slate); }
+    .metric:last-child { border-right: 0; }
+    .label { color: var(--ash); font-size: 10px; line-height: 14px; letter-spacing: .08em; text-transform: uppercase; }
+    .metric-value { color: var(--snow); font-family: var(--mono); font-size: clamp(19px, 1.55vw, 25px); line-height: 1.1; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .metric-value.active { color: var(--active); }
+    .metric-value.fault { color: var(--fault); }
+    .source { color: var(--steel); font-size: 9px; letter-spacing: .04em; }
+
+    .topology { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) 88px; background-image: linear-gradient(rgba(129,130,132,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(129,130,132,.035) 1px, transparent 1px); background-size: 32px 32px; }
+    .path { min-height: 0; display: grid; grid-template-columns: minmax(148px, 1fr) minmax(64px, .48fr) minmax(158px, 1fr) minmax(64px, .48fr) minmax(148px, 1fr); align-items: center; padding: 18px 24px 8px; }
+    .node { min-width: 0; min-height: 92px; display: grid; align-content: center; gap: 6px; padding: 13px; border: 1px solid var(--slate); background: var(--surface-2); }
+    .node.active { border-color: var(--active-dim); box-shadow: inset 0 -2px var(--active-dim); }
+    .node-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .state { display: flex; align-items: center; gap: 7px; color: var(--platinum); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+    .state::before { content: ""; width: 6px; height: 6px; flex: 0 0 auto; background: currentColor; }
+    .node.active .state { color: var(--active); }
+    .node-id { overflow: hidden; color: var(--ash); font-family: var(--mono); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .node-name { overflow: hidden; color: var(--snow); font-size: 16px; line-height: 20px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+    .node-meta { overflow: hidden; color: var(--ash); font-size: 11px; line-height: 15px; text-overflow: ellipsis; white-space: nowrap; }
+    .edge { min-width: 0; display: grid; grid-template-rows: 18px 16px 18px; align-items: center; text-align: center; }
+    .edge-copy { overflow: hidden; color: var(--ash); font-size: 9px; letter-spacing: .04em; text-overflow: ellipsis; white-space: nowrap; }
+    .edge-copy.active { color: var(--active); }
+    .line { position: relative; height: 1px; background: var(--slate-strong); }
+    .line::after { content: ""; position: absolute; right: -1px; top: -3px; border-top: 3px solid transparent; border-bottom: 3px solid transparent; border-left: 6px solid var(--active); }
+    .step-row { display: grid; grid-template-columns: minmax(148px, 1fr) minmax(64px, .48fr) minmax(158px, 1fr) minmax(64px, .48fr) minmax(148px, 1fr); align-items: end; padding: 0 24px 14px; }
+    .step { grid-column: 3; min-height: 68px; padding: 9px 12px; border: 1px dashed var(--slate-strong); background: var(--surface-1); }
+    .step.active { border-style: solid; border-color: var(--active-dim); background: var(--active-bg); }
+    .step .node-name { font-size: 13px; white-space: normal; }
+
+    .measurement { display: grid; grid-template-columns: 210px 1fr; border-top: 1px solid var(--slate); }
+    .measurement-title { display: grid; align-content: center; gap: 4px; padding: 12px 16px; border-right: 1px solid var(--slate); }
+    .measurement-copy { display: grid; align-content: center; gap: 7px; padding: 12px 18px; }
+    .measurement-copy strong { color: var(--snow); font-weight: 500; }
+    .bar { height: 4px; overflow: hidden; background: var(--surface-3); }
+    .bar span { display: block; width: 0; height: 100%; transform-origin: left; background: var(--active); transition: width 160ms ease-out; }
+
+    .evidence { min-height: 0; display: grid; grid-template-rows: 44px 116px minmax(0, 1fr); overflow: hidden; }
+    .evidence-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 14px; border-bottom: 1px solid var(--slate); }
+    .evidence-header h2 { margin: 0; color: var(--platinum); font-family: var(--mono); font-size: 11px; line-height: 16px; font-weight: 500; letter-spacing: .08em; }
+    .evidence-meta { color: var(--steel); font-size: 10px; }
+    .proof { display: grid; align-content: center; gap: 6px; padding: 14px; border-bottom: 1px solid var(--slate); }
+    .proof-kicker { color: var(--ash); font-size: 10px; letter-spacing: .08em; }
+    .proof-value { margin: 0; color: var(--snow); font-size: 20px; line-height: 25px; font-weight: 400; }
+    .proof-value.active { color: var(--active); }
+    .proof-detail { margin: 0; color: var(--ash); }
+    .ledger { min-height: 0; display: grid; grid-template-rows: 1fr 92px; }
+    .payload, .ack { min-height: 0; display: grid; grid-template-rows: 32px minmax(0, 1fr); }
+    .payload { border-bottom: 1px solid var(--slate); }
+    .ledger-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 14px; border-bottom: 1px solid var(--slate); color: var(--ash); font-family: var(--mono); font-size: 10px; letter-spacing: .05em; }
+    pre { min-height: 0; margin: 0; overflow: auto; padding: 11px 14px; color: var(--platinum); font-size: 11px; line-height: 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .ack-value { align-self: center; margin: 0; padding: 0 14px; color: var(--ash); font-family: var(--mono); font-size: 11px; line-height: 16px; overflow-wrap: anywhere; }
+    .ack-value strong { color: var(--active); font-weight: 500; }
+
+    .run-rail { display: grid; grid-template-columns: minmax(210px, .72fr) minmax(320px, 1.5fr) auto; align-items: stretch; }
+    .rail-identity, .rail-result, .rail-actions { min-width: 0; padding: 13px 16px; }
+    .rail-identity { display: grid; align-content: center; gap: 4px; border-right: 1px solid var(--slate); }
+    .rail-meta { overflow: hidden; color: var(--ash); font-size: 10px; line-height: 15px; text-overflow: ellipsis; white-space: nowrap; }
+    .rail-meta strong { color: var(--platinum); font-weight: 500; }
+    .rail-result { display: grid; align-content: center; gap: 4px; }
+    .result { margin: 0; color: var(--snow); font-size: 17px; line-height: 22px; }
+    .result.active { color: var(--active); }
+    .result-note { margin: 0; color: var(--ash); font-size: 12px; }
+    .rail-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; border-left: 1px solid var(--slate); }
+    .primary, .ghost { min-height: 48px; min-width: 208px; padding: 0 17px; cursor: pointer; font-family: var(--mono); font-size: 12px; font-weight: 500; }
+    .primary { border: 1px solid var(--active-dim); background: var(--active-bg); color: var(--active); }
+    .primary:hover:not(:disabled) { border-color: var(--active); }
+    .primary:active:not(:disabled) { background: var(--carbon); }
+    .ghost { min-width: 116px; border: 1px solid var(--slate-strong); background: transparent; color: var(--platinum); }
+    .ghost:hover:not(:disabled) { border-color: var(--ash); }
+    .local-action { display: none; }
+    .local-mode .local-action { display: inline-flex; align-items: center; justify-content: center; }
+
+    .visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+    @media (min-width: 1800px) and (min-height: 1000px) {
+      .app { grid-template-rows: 64px minmax(0, 1fr); }
+      .header { padding: 0 40px; }
+      .canvas { grid-template-rows: 80px minmax(0, 1fr) 112px; padding: 24px 40px 40px; }
+      .workspace { grid-template-columns: minmax(0, 2.17fr) minmax(520px, 1fr); }
+      .stage { grid-template-rows: 76px minmax(0, 1fr) 108px; }
+      .node { min-height: 98px; padding: 16px; }
+      .path, .step-row { padding-left: 34px; padding-right: 34px; }
+    }
+
+    @media (max-width: 1179px) {
+      .app { min-height: 100svh; }
+      .header { grid-template-columns: 1fr auto; padding: 0 20px; }
+      .control-plane { display: none; }
+      .canvas { display: block; padding: 18px 20px 120px; }
+      .title-row { min-height: 76px; }
+      .workspace { display: grid; grid-template-columns: 1fr; margin-top: 16px; }
+      .stage { min-height: 570px; }
+      .evidence { min-height: 520px; }
+      .run-rail { position: fixed; z-index: 10; right: 0; bottom: 0; left: 0; min-height: 104px; background: var(--surface-1); padding-bottom: env(safe-area-inset-bottom); }
+    }
+
+    @media (max-width: 720px) {
+      body { font-size: 16px; }
+      .brand span, .runtime-age, .cloud-link { display: none; }
+      .header { padding: 0 14px; }
+      .canvas { padding: 14px 14px 158px; }
+      .title-row { display: block; }
+      .disclosure { margin-top: 8px; text-align: left; }
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .metric:nth-child(2) { border-right: 0; }
+      .metric:nth-child(-n+2) { border-bottom: 1px solid var(--slate); }
+      .stage { grid-template-rows: 132px minmax(610px, 1fr) 120px; }
+      .path { grid-template-columns: 1fr; gap: 22px; padding: 20px; }
+      .edge { min-height: 48px; transform: rotate(90deg); }
+      .edge-copy { transform: rotate(-90deg); }
+      .step-row { grid-template-columns: 1fr; padding: 0 20px 18px; }
+      .step { grid-column: 1; }
+      .measurement { grid-template-columns: 1fr; }
+      .measurement-title { border-right: 0; border-bottom: 1px solid var(--slate); }
+      .run-rail { grid-template-columns: 1fr auto; }
+      .rail-identity { display: none; }
+      .rail-actions { padding: 8px; }
+      .primary { min-width: 168px; }
+      .ghost, .local-action { display: none !important; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="header" aria-label="Demo runtime header">
+      <div class="brand">EXPANSO <span>LIVE PROOF</span></div>
+      <div class="control-plane" aria-label="Control and data plane">
+        <span>CONTROL PLANE</span><b>EXPANSO CLOUD</b><span class="divider">|</span><span>DATA PLANE</span><b>EDGE → RECEIVER</b>
+      </div>
+      <div class="runtime" id="runtime-status">
+        <span class="runtime-square" aria-hidden="true"></span><span id="runtime-label">CONNECTING</span><span class="runtime-age" id="runtime-age">no snapshot</span>
+        <a class="cloud-link" id="cloud-link" href="https://cloud.expanso.io" target="_blank" rel="noreferrer">Open Cloud ↗</a>
+      </div>
+    </header>
+
+    <main class="canvas">
+      <section class="title-row" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">DEMO 01 / SIMULATED SOURCE · COMPRESSOR MONITOR</p>
+          <h1 id="page-title">Signal, not noise</h1>
+        </div>
+        <p class="disclosure"><strong>SIMULATED SOURCE · one Edge node · deterministic seed</strong><span id="mode-disclosure">CONTROL: EXPANSO CLOUD · runtime proof pending. DATA: Edge → receiver.</span></p>
+      </section>
+
+      <div class="workspace">
+        <section class="stage" aria-label="Live data path">
+          <div class="metrics">
+            <div class="metric"><span class="label">RAW RATE · 5S WINDOW</span><strong class="metric-value" id="raw-rate">—</strong><span class="source">SIMULATOR OBSERVED</span></div>
+            <div class="metric"><span class="label">DELIVERED · 5S WINDOW</span><strong class="metric-value" id="delivered-rate">—</strong><span class="source">RECEIVER OBSERVED</span></div>
+            <div class="metric"><span class="label">REMOVED BEFORE NETWORK</span><strong class="metric-value" id="reduction">—</strong><span class="source" id="reduction-source">AWAITING FILTER</span></div>
+            <div class="metric"><span class="label">PROTECTED INCIDENTS</span><strong class="metric-value" id="incidents">0 / 0</strong><span class="source">EXACT ACK MATCH</span></div>
+          </div>
+
+          <div class="topology">
+            <div class="path" role="img" aria-describedby="topology-description">
+              <div class="node" id="source-node">
+                <div class="node-top"><span class="state" id="source-state">AWAITING SNAPSHOT</span><span class="node-id">SOURCE-01</span></div>
+                <div class="node-name">Compressor monitor</div>
+                <div class="node-meta">50 attempts/s · seed <span id="seed-node">—</span></div>
+              </div>
+              <div class="edge"><span class="edge-copy" id="edge-in-rate">—</span><span class="line"></span><span class="edge-copy">SOURCE ADMISSION</span></div>
+              <div class="node" id="edge-node">
+                <div class="node-top"><span class="state" id="edge-state">WAITING</span><span class="node-id">EDGE-01</span></div>
+                <div class="node-name">Expanso Edge</div>
+                <div class="node-meta" id="edge-revision">job baseline-v1</div>
+              </div>
+              <div class="edge"><span class="edge-copy" id="edge-out-rate">—</span><span class="line"></span><span class="edge-copy" id="edge-path-state">DIRECT DATA PLANE</span></div>
+              <div class="node" id="receiver-node">
+                <div class="node-top"><span class="state" id="receiver-state">AWAITING SNAPSHOT</span><span class="node-id">RECEIVER</span></div>
+                <div class="node-name">Demo receiver</div>
+                <div class="node-meta" id="receiver-count">0 acknowledgements</div>
+              </div>
+            </div>
+            <p class="visually-hidden" id="topology-description">Synthetic compressor monitor sends records to one Expanso Edge node, then directly to the demo receiver. The filter state is reported by the runtime.</p>
+            <div class="step-row">
+              <div class="step node" id="filter-step">
+                <div class="node-top"><span class="state" id="step-state">NOT DEPLOYED</span><span class="node-id">STEP</span></div>
+                <div class="node-name">drop routine DEBUG + heartbeat</div>
+                <div class="node-meta" id="step-revision">waiting for running revision</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="measurement">
+            <div class="measurement-title"><span class="label">MEASUREMENT WINDOW</span><strong id="window-label">BASELINE · LIVE</strong><span class="source">SERVER-COMPUTED 5 SECONDS</span></div>
+            <div class="measurement-copy"><strong id="window-copy">Routine records are crossing the network unchanged.</strong><div class="bar" aria-hidden="true"><span id="window-bar"></span></div><span class="source" id="window-detail">Waiting for a reported filtered revision.</span></div>
+          </div>
+        </section>
+
+        <aside class="evidence" aria-labelledby="evidence-title">
+          <div class="evidence-header"><h2 id="evidence-title">RECEIVER EVIDENCE</h2><span class="evidence-meta" id="evidence-time">WAITING</span></div>
+          <div class="proof">
+            <span class="proof-kicker" id="proof-kicker">BASELINE RECORD</span>
+            <p class="proof-value" id="proof-value">Waiting for an acknowledgement…</p>
+            <p class="proof-detail" id="proof-detail">Proof changes only when the receiver reports it.</p>
+          </div>
+          <div class="ledger">
+            <div class="payload"><div class="ledger-heading"><span>PINNED PAYLOAD</span><span id="payload-id">NO EVENT</span></div><pre id="payload">Waiting for the receiver’s first acknowledgement…</pre></div>
+            <div class="ack"><div class="ledger-heading"><span>RECEIVER ACKNOWLEDGEMENT</span><span>HTTP 200</span></div><p class="ack-value" id="ack">No receiver acknowledgement yet.</p></div>
+          </div>
+        </aside>
+      </div>
+
+      <section class="run-rail" aria-label="Run controls and result">
+        <div class="rail-identity"><span class="label">DETERMINISTIC RUN</span><span class="rail-meta">RUN <strong id="run-id">—</strong></span><span class="rail-meta">SEED <strong id="seed">—</strong> · WINDOW <strong>5000 MS</strong></span></div>
+        <div class="rail-result" aria-live="polite"><p class="result" id="result">Connecting to the live receiver…</p><p class="result-note" id="result-note">Clipboard actions never change proof state.</p></div>
+        <div class="rail-actions">
+          <button class="ghost local-action" id="local-action" type="button">Run local rehearsal</button>
+          <button class="ghost" id="reset" type="button" hidden>Reset run</button>
+          <button class="primary" id="primary" type="button">Copy pipeline step</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const PIPELINE_FRAGMENT = "- mapping: 'root = if [\"WARN\", \"ERROR\"].contains(this.level) { this } else { deleted() }'";
+      const els = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
+      let snapshot = null;
+      let lastSnapshotSeq = -1;
+      let lastSnapshotAt = 0;
+      let copied = false;
+      let actionBusy = false;
+      let pollTimer = null;
+      let eventSource = null;
+      let protectedIncidentId = null;
+
+      const formatRate = (bytesPerSecond) => {
+        const value = Number(bytesPerSecond || 0);
+        if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)} MB/s`;
+        if (value >= 1_000) return `${(value / 1_000).toFixed(1)} KB/s`;
+        return `${Math.round(value)} B/s`;
+      };
+
+      const shortId = (value) => value ? String(value).slice(0, 8) : "—";
+      const allAssertionsPass = (data) => {
+        const assertions = data.verification?.assertions;
+        return Array.isArray(assertions) && assertions.length > 0 && assertions.every((assertion) => assertion?.passed === true);
+      };
+      const filterVerified = (data) => data.filter_observation?.observed === true;
+      const hasFilteredRevision = (data) => filterVerified(data)
+        || data.pipeline?.variant === "filtered"
+        || data.filter_state === "filtered"
+        || data.filter_state === "observed";
+      const revisionAge = (data) => {
+        if (!data.revision_active_at || !data.server_time) return 0;
+        return Math.max(Date.parse(data.server_time) - Date.parse(data.revision_active_at), 0);
+      };
+      const incidentPayload = (data) => {
+        if (!protectedIncidentId) return null;
+        const pinned = data.evidence?.verification_event;
+        return (pinned?.event_id === protectedIncidentId ? pinned : null)
+          || (data.evidence?.payloads || []).find((item) => item?.event_id === protectedIncidentId)
+          || data.recent?.find((item) => item?.event_id === protectedIncidentId)
+          || null;
+      };
+      const incidentAcknowledged = (data) => {
+        const acknowledgement = data.evidence?.verification_acknowledgement;
+        return Boolean(protectedIncidentId
+          && acknowledgement?.event_id === protectedIncidentId
+          && data.incidents?.[protectedIncidentId]?.delivered === true);
+      };
+      const verifiedIncidentId = (data) => {
+        if (!filterVerified(data)) return null;
+        if (data.verification?.state !== "verified" || !allAssertionsPass(data)) return null;
+        const event = data.evidence?.verification_event;
+        const acknowledgement = data.evidence?.verification_acknowledgement;
+        const eventId = event?.event_id;
+        if (!eventId || acknowledgement?.event_id !== eventId) return null;
+        if (data.verification?.incident_id !== eventId) return null;
+        if (event?.code !== "COMPRESSOR_OVERHEAT" || acknowledgement?.code !== "COMPRESSOR_OVERHEAT") return null;
+        return data.incidents?.[eventId]?.delivered === true ? eventId : null;
+      };
+      const incidentDelivered = (data) => Boolean(protectedIncidentId && verifiedIncidentId(data) === protectedIncidentId);
+
+      function chooseEvidence(data) {
+        const payloads = data.evidence?.payloads || [];
+        const acknowledgements = data.evidence?.acknowledgements || [];
+        if (protectedIncidentId) {
+          const payload = incidentPayload(data);
+          const pinnedAcknowledgement = data.evidence?.verification_acknowledgement;
+          const acknowledgement = (pinnedAcknowledgement?.event_id === protectedIncidentId ? pinnedAcknowledgement : null)
+            || acknowledgements.find((item) => item?.event_id === protectedIncidentId);
+          if (payload || acknowledgement) return { payload, ack: acknowledgement, incident: true };
+        }
+        const latestAck = acknowledgements[0] || null;
+        const acknowledgedPayload = payloads.find((item) => item?.event_id === latestAck?.event_id)
+          || data.recent?.find((item) => item?.event_id === latestAck?.event_id)
+          || null;
+        if (acknowledgedPayload) return { payload: acknowledgedPayload, ack: latestAck, incident: false };
+        const payload = [...payloads].reverse().find(Boolean) || data.recent?.[0] || null;
+        const ack = acknowledgements.find((item) => item?.event_id === payload?.event_id) || null;
+        return { payload, ack, incident: false };
+      }
+
+      function render(data) {
+        snapshot = data;
+        const metrics = data.metrics || {};
+        const control = data.control_plane || {};
+        const filtered = hasFilteredRevision(data);
+        const filterIsVerified = filterVerified(data);
+        const incidentIsAcknowledged = incidentAcknowledged(data);
+        const incidentIsDelivered = incidentDelivered(data);
+        const evidence = chooseEvidence(data);
+        const mode = data.mode || control.mode || "local";
+        const isLocal = mode === "local";
+        const localPipelineHealthy = isLocal && ["running", "healthy"].includes(data.pipeline?.status);
+        const cloudControlPlaneVerified = !isLocal && control.state && control.state !== "unverified" && data.pipeline?.status === "running";
+        const displayedRevision = isLocal || cloudControlPlaneVerified ? (data.pipeline_revision || control.pipeline_revision || "unknown") : "unverified";
+        const windowMs = Number(data.metrics_window_ms || 5000);
+        const elapsed = Math.min(revisionAge(data) / Math.max(windowMs, 1), 1);
+
+        els.app.classList.toggle("local-mode", isLocal);
+        els["mode-disclosure"].textContent = isLocal ? "LOCAL REHEARSAL · Cloud deployment remains a visible manual step." : "Cloud is the control plane. Payloads move Edge → receiver.";
+        els["cloud-link"].href = control.cloud_url || "https://cloud.expanso.io";
+        els["raw-rate"].textContent = formatRate(metrics.raw_rate_bps_5s);
+        els["delivered-rate"].textContent = formatRate(metrics.delivered_rate_bps_5s);
+        els.reduction.textContent = filterIsVerified ? `${Number(metrics.byte_reduction_percent || 0).toFixed(1)}%` : "—";
+        els.reduction.classList.toggle("active", filterIsVerified);
+        els["reduction-source"].textContent = filterIsVerified ? "RECEIVER BYTE TOTALS" : filtered ? "MEASURING NEW REVISION" : "AWAITING FILTER";
+        els.incidents.textContent = protectedIncidentId ? `${incidentIsDelivered ? 1 : 0} / 1` : "0 / 0";
+        els.incidents.classList.toggle("active", incidentIsDelivered);
+        els.incidents.classList.toggle("fault", Boolean(protectedIncidentId && !incidentIsDelivered));
+        els["seed-node"].textContent = data.seed ?? "—";
+        els["edge-in-rate"].textContent = formatRate(metrics.raw_rate_bps_5s);
+        els["edge-out-rate"].textContent = formatRate(metrics.delivered_rate_bps_5s);
+        els["source-state"].textContent = Number(metrics.raw_rate_bps_5s) > 0 ? "SIMULATOR OBSERVED" : "SOURCE UNVERIFIED";
+        els["receiver-state"].textContent = evidence.ack?.event_id ? "RECEIVER ACKNOWLEDGED" : "RECEIVER WAITING";
+        els["edge-node"].classList.toggle("active", localPipelineHealthy || cloudControlPlaneVerified);
+        els["receiver-node"].classList.toggle("active", Boolean(evidence.ack?.event_id));
+        els["edge-state"].textContent = isLocal
+          ? localPipelineHealthy ? "HEALTHY" : data.pipeline?.status === "stale" ? "STALE" : "WAITING"
+          : cloudControlPlaneVerified ? "HEALTHY" : filtered ? "RECEIVER OBSERVED" : "UNVERIFIED";
+        els["edge-revision"].textContent = `job ${displayedRevision}`;
+        els["receiver-count"].textContent = `${Number(metrics.records_delivered_total || metrics.downstream_acked || 0).toLocaleString()} acknowledgements`;
+        els["edge-path-state"].textContent = filtered ? (isLocal ? "FILTERED AT EDGE" : "FILTER OBSERVED BY RECEIVER") : "DIRECT DATA PLANE";
+        els["edge-path-state"].classList.toggle("active", filtered);
+        els["filter-step"].classList.toggle("active", filtered);
+        els["step-state"].textContent = filtered ? (isLocal ? "ACTIVE" : "RECEIVER OBSERVED") : "NOT DEPLOYED";
+        els["step-revision"].textContent = filtered ? (isLocal || cloudControlPlaneVerified ? displayedRevision : "Cloud revision unverified") : "waiting for running revision";
+        els["window-bar"].style.width = filtered ? `${Math.round(elapsed * 100)}%` : "0%";
+        els["window-label"].textContent = filterIsVerified ? "FILTER OBSERVED · COMPLETE" : filtered ? "REVISION REPORTED · MEASURING" : "BASELINE · LIVE";
+        els["window-copy"].textContent = filterIsVerified ? `Observed ${Number(metrics.byte_reduction_percent || 0).toFixed(1)}% fewer bytes at the receiver.` : filtered ? "The new revision is active. Completing one receiver window…" : "Routine records are crossing the network unchanged.";
+        els["window-detail"].textContent = filterIsVerified ? `${Number(metrics.byte_reduction_numerator || 0).toLocaleString()} of ${Number(metrics.byte_reduction_denominator || 0).toLocaleString()} bytes removed before transmission.` : filtered ? `${Math.round(elapsed * 100)}% of the post-revision window observed.` : "Waiting for a reported filtered revision.";
+
+        els["run-id"].textContent = shortId(data.run_id);
+        els.seed.textContent = data.seed ?? "—";
+        els["evidence-time"].textContent = data.server_time ? new Date(data.server_time).toLocaleTimeString([], { hour12: false }) : "WAITING";
+        els.payload.textContent = evidence.payload ? JSON.stringify(evidence.payload, null, 2) : "Waiting for the receiver’s first acknowledgement…";
+        els["payload-id"].textContent = evidence.payload?.event_id ? shortId(evidence.payload.event_id) : "NO EVENT";
+        els.ack.innerHTML = "";
+        if (evidence.ack?.event_id) {
+          const strong = document.createElement("strong");
+          strong.textContent = `ACK ${shortId(evidence.ack.event_id)}`;
+          els.ack.append(strong, document.createTextNode(` · ${evidence.ack.acknowledged_at || "receiver time unavailable"}`));
+        } else {
+          els.ack.textContent = "No matching receiver acknowledgement yet.";
+        }
+
+        if (incidentIsDelivered) {
+          els["proof-kicker"].textContent = "PROTECTED INCIDENT · RECEIVER ACKNOWLEDGED";
+          els["proof-value"].textContent = "COMPRESSOR_OVERHEAT arrived, 1 / 1";
+          els["proof-value"].classList.add("active");
+          els["proof-detail"].textContent = `Exact event ID ${protectedIncidentId} matched at the receiver.`;
+          els.result.textContent = `Observed receiver traffic fell ${Number(metrics.byte_reduction_percent || 0).toFixed(1)}%. The protected incident still arrived, 1/1.`;
+          els.result.classList.add("active");
+          els["result-note"].textContent = "Receiver-derived byte window and exact acknowledgement shown above.";
+        } else if (protectedIncidentId) {
+          els["proof-kicker"].textContent = incidentIsAcknowledged ? "PROTECTED INCIDENT · VERIFICATION FAILED" : "PROTECTED INCIDENT · IN FLIGHT";
+          els["proof-value"].textContent = incidentIsAcknowledged ? "Receiver code did not match COMPRESSOR_OVERHEAT" : "Waiting for the exact receiver acknowledgement…";
+          els["proof-value"].classList.remove("active");
+          els["proof-detail"].textContent = `Expected code COMPRESSOR_OVERHEAT · event ${protectedIncidentId}`;
+          els.result.textContent = incidentIsAcknowledged ? "The event was acknowledged, but protected-code verification failed. No success was recorded." : "Protected incident injected. Proof waits for the receiver.";
+          els.result.classList.remove("active");
+          els["result-note"].textContent = incidentIsAcknowledged ? "The pinned receiver payload above is authoritative." : "Admission alone is not delivery.";
+        } else if (filterIsVerified) {
+          els["proof-kicker"].textContent = "FILTER REVISION · VERIFIED WINDOW";
+          els["proof-value"].textContent = `Receiver traffic fell ${Number(metrics.byte_reduction_percent || 0).toFixed(1)}%`;
+          els["proof-value"].classList.add("active");
+          els["proof-detail"].textContent = isLocal
+            ? `${displayedRevision} plus one complete receiver window.`
+            : "Receiver window crossed the filter threshold; Cloud revision remains unverified.";
+          els.result.textContent = isLocal
+            ? `Observed receiver traffic fell ${Number(metrics.byte_reduction_percent || 0).toFixed(1)}% after ${displayedRevision} became active.`
+            : `Observed receiver traffic fell ${Number(metrics.byte_reduction_percent || 0).toFixed(1)}%. Cloud revision status remains unverified.`;
+          els.result.classList.add("active");
+          els["result-note"].textContent = "Waiting for the automatically emitted COMPRESSOR_OVERHEAT incident.";
+        } else if (filtered) {
+          els["proof-kicker"].textContent = "FILTER REPORTED · MEASURING";
+          els["proof-value"].textContent = "Waiting for a complete receiver window…";
+          els["proof-value"].classList.remove("active");
+          els["proof-detail"].textContent = "Old rates remain visible until the 5-second window completes.";
+          els.result.textContent = "Filtered revision reported. Measuring before making a claim…";
+          els.result.classList.remove("active");
+          els["result-note"].textContent = "Proof state came from the runtime, not the clipboard.";
+        } else {
+          els["proof-kicker"].textContent = "BASELINE RECORD";
+          els["proof-value"].textContent = evidence.ack ? "Routine record acknowledged" : "Waiting for an acknowledgement…";
+          els["proof-value"].classList.remove("active");
+          els["proof-detail"].textContent = "Routine compressor records are crossing the network unchanged.";
+          els.result.textContent = copied ? "Pipeline step copied. Deploy it in Expanso Cloud." : "Routine compressor records are crossing the network unchanged.";
+          els.result.classList.remove("active");
+          els["result-note"].textContent = copied ? "The cockpit is still waiting for a new running revision." : "Copying the step does not deploy or alter the runtime.";
+        }
+
+        if (filterIsVerified && !protectedIncidentId) {
+          els.primary.textContent = "Waiting for protected incident…";
+        } else if (protectedIncidentId) {
+          els.primary.textContent = incidentIsDelivered ? "Incident verified" : "Waiting for protected incident…";
+        } else {
+          els.primary.textContent = copied ? "Copied" : "Copy pipeline step";
+        }
+        els.primary.disabled = actionBusy || filtered;
+        els["local-action"].hidden = filtered;
+        els["local-action"].disabled = actionBusy;
+        els.reset.hidden = !(incidentIsDelivered || incidentIsAcknowledged || data.action?.phase === "failed");
+        updateFreshness();
+      }
+
+      function acceptSnapshot(next) {
+        if (!next || typeof next.snapshot_seq !== "number") return;
+        if (snapshot?.run_id === next.run_id && next.snapshot_seq <= lastSnapshotSeq) return;
+        if (snapshot?.run_id !== next.run_id) {
+          lastSnapshotSeq = -1;
+          protectedIncidentId = null;
+          copied = false;
+        }
+        if (!protectedIncidentId) protectedIncidentId = next.verification?.incident_id || verifiedIncidentId(next);
+        lastSnapshotSeq = next.snapshot_seq;
+        lastSnapshotAt = performance.now();
+        render(next);
+      }
+
+      async function fetchSnapshot() {
+        try {
+          const response = await fetch("/api/snapshot", { cache: "no-store" });
+          if (!response.ok) throw new Error(`snapshot HTTP ${response.status}`);
+          acceptSnapshot(await response.json());
+        } catch (error) {
+          els["result-note"].textContent = `Snapshot unavailable: ${error.message}`;
+          updateFreshness();
+        }
+      }
+
+      function startPolling() {
+        if (pollTimer) return;
+        pollTimer = window.setInterval(fetchSnapshot, 1000);
+        fetchSnapshot();
+      }
+
+      function stopPolling() {
+        if (!pollTimer) return;
+        window.clearInterval(pollTimer);
+        pollTimer = null;
+      }
+
+      function connectEvents() {
+        eventSource = new EventSource("/api/events");
+        eventSource.addEventListener("snapshot", (event) => {
+          try { acceptSnapshot(JSON.parse(event.data)); } catch { /* keep last verified snapshot */ }
+        });
+        eventSource.addEventListener("open", stopPolling);
+        eventSource.addEventListener("error", startPolling);
+      }
+
+      function updateFreshness() {
+        const ageMs = lastSnapshotAt ? performance.now() - lastSnapshotAt : Infinity;
+        const stale = ageMs > 2000;
+        const expired = ageMs > 5000;
+        els["runtime-status"].classList.toggle("stale", stale);
+        els["runtime-label"].textContent = stale ? "STALE" : "CONNECTED";
+        els["runtime-age"].textContent = Number.isFinite(ageMs) ? `${(ageMs / 1000).toFixed(1)}s ago` : "no snapshot";
+        if (snapshot && stale) els["result-note"].textContent = `Measurements paused. Last receiver update ${(ageMs / 1000).toFixed(1)}s ago.`;
+        els.primary.disabled = actionBusy || expired || Boolean(snapshot && hasFilteredRevision(snapshot));
+        els["local-action"].disabled = actionBusy || expired;
+        els.reset.disabled = actionBusy || expired;
+      }
+
+      async function writeClipboard(text) {
+        try {
+          if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
+          await navigator.clipboard.writeText(text);
+          return;
+        } catch {
+          const fallback = document.createElement("textarea");
+          fallback.value = text;
+          fallback.setAttribute("readonly", "");
+          fallback.style.position = "fixed";
+          fallback.style.opacity = "0";
+          document.body.append(fallback);
+          fallback.select();
+          const copiedWithFallback = document.execCommand("copy");
+          fallback.remove();
+          if (!copiedWithFallback) throw new Error("Clipboard write rejected");
+        }
+      }
+
+      async function copyPipeline() {
+        try {
+          await writeClipboard(PIPELINE_FRAGMENT);
+          copied = true;
+          els.primary.textContent = "Copied";
+          els.result.textContent = "Pipeline step copied. Deploy it in Expanso Cloud.";
+          els["result-note"].textContent = "Proof state is unchanged until the runtime reports the new revision.";
+        } catch {
+          els.result.textContent = "Clipboard access failed. Copy the validated step from the page source.";
+          els["result-note"].textContent = "No runtime state changed.";
+        }
+      }
+
+      async function post(path) {
+        actionBusy = true;
+        updateFreshness();
+        try {
+          const response = await fetch(path, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() } });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return await response.json();
+        } finally {
+          actionBusy = false;
+          updateFreshness();
+        }
+      }
+
+      els.primary.addEventListener("click", () => {
+        if (!snapshot || hasFilteredRevision(snapshot)) return;
+        copyPipeline();
+      });
+
+      els["local-action"].addEventListener("click", async () => {
+        try {
+          els["local-action"].textContent = "Rehearsing…";
+          await post("/api/actions/apply-filter");
+          els.result.textContent = "LOCAL REHEARSAL started. Waiting for the runtime revision.";
+          els["result-note"].textContent = "Production deployment still happens visibly in Expanso Cloud.";
+        } catch (error) {
+          els.result.textContent = "Local rehearsal could not start.";
+          els["result-note"].textContent = error.message;
+        } finally {
+          els["local-action"].textContent = "Run local rehearsal";
+        }
+      });
+
+      els.reset.addEventListener("click", async () => {
+        try {
+          await post("/api/reset");
+          protectedIncidentId = null;
+          copied = false;
+          await fetchSnapshot();
+        } catch (error) {
+          els.result.textContent = "Reset failed. The current proof remains visible.";
+          els["result-note"].textContent = error.message;
+        }
+      });
+
+      window.setInterval(updateFreshness, 250);
+      fetchSnapshot();
+      connectEvents();
+      window.addEventListener("beforeunload", () => eventSource?.close());
+    })();
+  </script>
+</body>
+</html>

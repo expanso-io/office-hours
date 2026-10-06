@@ -1,0 +1,30 @@
+name: expanso-demo-signal-not-noise
+services:
+  demo-api:
+    build: .
+    environment:
+      DEMO_MODE: ${DEMO_MODE:-local}
+      DEMO_VARIANT: ${DEMO_VARIANT:-baseline}
+      PIPELINE_URL: ${PIPELINE_URL:-http://pipeline:8080/ingest}
+      SIMULATOR_ENABLED: "true"
+    ports:
+      - "127.0.0.1:19440:8000"
+    labels:
+      io.expanso.demo: signal-not-noise
+    healthcheck:
+      test: ["CMD", "uv", "run", "--no-sync", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+  pipeline:
+    image: ghcr.io/warpstreamlabs/bento@sha256:f9c60f8890f5c9e770a79497cc3fb44346bbc25ca8949a5a87bf000b14df4999
+    command: ["streams", "--prefix-stream-endpoints=false", "/streams/active.yaml"]
+    environment:
+      DEMO_SINK_URL: http://demo-api:8000/api/sink/logs
+    volumes:
+      - ./pipelines/${DEMO_VARIANT:-baseline}.runtime.yaml:/streams/active.yaml:ro
+    labels:
+      io.expanso.demo: signal-not-noise
+    depends_on:
+      demo-api:
+        condition: service_healthy

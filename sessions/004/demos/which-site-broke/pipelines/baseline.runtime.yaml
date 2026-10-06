@@ -1,0 +1,22 @@
+input:
+  http_server:
+    address: 0.0.0.0:8080
+    path: /ingest
+    allowed_verbs: [POST]
+    timeout: 5s
+buffer:
+  none: {}
+pipeline:
+  threads: 1
+  processors: []
+output:
+  http_client:
+    url: ${DEMO_SINK_URL:http://demo-api:8000/api/sink/events}
+    verb: POST
+    headers:
+      X-Demo-Transport-Origin: ${DEMO_NODE_ID:unknown}
+    timeout: 2s
+    retry_period: 250ms
+    max_retry_backoff: 2s
+    retries: 3
+    max_in_flight: 1

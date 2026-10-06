@@ -1,0 +1,30 @@
+name: demo-which-site-broke
+namespace: default
+type: pipeline
+labels: {demo: which-site-broke, variant: enriched}
+selector:
+  match_labels: {demo: which-site-broke, role: turbine}
+config:
+  input:
+    http_server: {address: "0.0.0.0:8080", path: /ingest, allowed_verbs: [POST], timeout: 5s}
+  pipeline:
+    threads: 1
+    processors:
+      - mapping: |
+          root = this
+          root.source_context.node_id = env("DEMO_NODE_ID").or(metadata("node_label_node_id")).or(metadata("node_id"))
+          root.source_context.site_id = env("DEMO_SITE_ID").or(metadata("node_label_site_id"))
+          root.source_context.asset_id = env("DEMO_ASSET_ID").or(metadata("node_label_asset_id"))
+          root.source_context.region = env("DEMO_REGION").or(metadata("node_label_region"))
+          root.source_context.app_version = env("DEMO_APP_VERSION").or(metadata("node_label_app_version"))
+          root.source_context.pipeline_version = "lineage-v2"
+  output:
+    http_client:
+      url: ${DEMO_SINK_URL:http://host.docker.internal:19450/api/sink/events}
+      verb: POST
+      headers: {X-Demo-Transport-Origin: "${DEMO_NODE_ID:unknown}"}
+      timeout: 2s
+      retry_period: 250ms
+      max_retry_backoff: 2s
+      retries: 3
+      max_in_flight: 1

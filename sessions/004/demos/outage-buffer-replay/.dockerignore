@@ -1,0 +1,8 @@
+.git
+.venv
+.runtime
+.secrets
+.cloud-state
+__pycache__
+.pytest_cache
+.ruff_cache

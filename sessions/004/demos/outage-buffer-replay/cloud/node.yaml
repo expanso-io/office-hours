@@ -1,0 +1,3 @@
+name: outage-buffer-replay-edge
+data_dir: /data
+labels: {demo: outage-buffer-replay, role: remote-site, environment: recorded-demo, region: laptop}

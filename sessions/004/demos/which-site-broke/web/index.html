@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Which site broke? · Expanso live proof</title>
+  <style>
+    @font-face { font-family: "IBM Plex Sans"; src: url("/assets/fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2"); font-style: normal; font-weight: 400; font-display: swap; }
+    @font-face { font-family: "IBM Plex Sans"; src: url("/assets/fonts/ibm-plex-sans-latin-500-normal.woff2") format("woff2"); font-style: normal; font-weight: 500; font-display: swap; }
+    @font-face { font-family: "IBM Plex Mono"; src: url("/assets/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2"); font-style: normal; font-weight: 400; font-display: swap; }
+    @font-face { font-family: "IBM Plex Mono"; src: url("/assets/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2"); font-style: normal; font-weight: 500; font-display: swap; }
+
+    :root {
+      color-scheme: dark;
+      --carbon: #0b0e12;
+      --surface-1: #11151a;
+      --surface-2: #171b20;
+      --surface-3: #1f242a;
+      --slate: #30353b;
+      --slate-strong: #454c54;
+      --snow: #dedede;
+      --platinum: #bababb;
+      --ash: #818284;
+      --steel: #5d5e61;
+      --active: #00d892;
+      --active-bg: #002923;
+      --active-dim: #005441;
+      --warning: #f4b740;
+      --warning-bg: #2e240f;
+      --fault: #ff6b6b;
+      --fault-bg: #341617;
+      --sans: "IBM Plex Sans", "Helvetica Neue", sans-serif;
+      --mono: "IBM Plex Mono", "SFMono-Regular", monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { width: 100%; min-height: 100%; margin: 0; background: var(--carbon); }
+    body { color: var(--platinum); font-family: var(--sans); font-size: 14px; line-height: 1.45; }
+    button, a { font: inherit; }
+    button { border-radius: 1px; }
+    button:focus-visible, a:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--carbon), 0 0 0 4px var(--active); }
+    button:disabled { cursor: not-allowed; opacity: .48; }
+
+    .app { min-height: 100svh; display: grid; grid-template-rows: 56px minmax(0, 1fr); }
+    .header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px; padding: 0 32px; border-bottom: 1px solid var(--slate); }
+    .brand, .control-plane, .runtime, .eyebrow, .label, .source, .node-meta, .state, .edge-copy, .rail-meta, .proof-kicker, .evidence-meta, .fleet-cell, pre { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+    .brand { color: var(--snow); font-weight: 500; letter-spacing: .04em; white-space: nowrap; }
+    .brand span { margin-left: 14px; color: var(--ash); font-size: 11px; font-weight: 400; }
+    .control-plane { display: flex; align-items: center; gap: 10px; color: var(--ash); font-size: 11px; letter-spacing: .05em; }
+    .control-plane b { color: var(--platinum); font-weight: 500; }
+    .divider { color: var(--slate-strong); }
+    .runtime { justify-self: end; display: flex; align-items: center; gap: 9px; color: var(--platinum); font-size: 11px; white-space: nowrap; }
+    .runtime-square { width: 7px; height: 7px; background: var(--active); }
+    .runtime.stale .runtime-square { background: var(--warning); }
+    .cloud-link { min-height: 44px; display: inline-flex; align-items: center; margin-left: 8px; color: var(--platinum); text-decoration: underline; text-underline-offset: 3px; }
+
+    .canvas { min-height: 0; display: grid; grid-template-rows: 68px minmax(0, 1fr) 100px; gap: 16px; padding: 20px 32px 28px; }
+    .title-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 24px; }
+    .eyebrow { margin: 0 0 5px; color: var(--ash); font-size: 11px; line-height: 16px; letter-spacing: .08em; text-transform: uppercase; }
+    h1 { margin: 0; color: var(--snow); font-size: clamp(30px, 2.2vw, 40px); line-height: 1.08; font-weight: 400; text-wrap: balance; }
+    .disclosure { max-width: 560px; margin: 0 0 4px; color: var(--ash); text-align: right; }
+    .disclosure strong { display: block; color: var(--platinum); font-weight: 500; }
+
+    .workspace { min-height: 0; display: grid; grid-template-columns: minmax(0, 2.06fr) minmax(360px, 1fr); gap: 16px; }
+    .stage, .evidence, .run-rail { min-width: 0; border: 1px solid var(--slate); background: var(--surface-1); }
+    .stage { display: grid; grid-template-rows: 72px minmax(0, 1fr) 96px; overflow: hidden; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 1px solid var(--slate); }
+    .metric { min-width: 0; display: grid; align-content: center; gap: 3px; padding: 9px 14px; border-right: 1px solid var(--slate); }
+    .metric:last-child { border-right: 0; }
+    .label { color: var(--ash); font-size: 10px; line-height: 14px; letter-spacing: .08em; text-transform: uppercase; }
+    .metric-value { color: var(--snow); font-family: var(--mono); font-size: clamp(19px, 1.55vw, 25px); line-height: 1.1; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .metric-value.active { color: var(--active); }
+    .source { color: var(--steel); font-size: 9px; letter-spacing: .04em; }
+
+    .topology { min-height: 0; display: grid; grid-template-columns: minmax(300px, 1.45fr) minmax(58px, .3fr) minmax(155px, .72fr) minmax(58px, .3fr) minmax(148px, .7fr); align-items: center; padding: 26px 24px; background-image: linear-gradient(rgba(129,130,132,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(129,130,132,.035) 1px, transparent 1px); background-size: 32px 32px; }
+    .fleet { min-width: 0; display: grid; gap: 8px; padding: 12px; border: 1px solid var(--slate); background: var(--surface-2); }
+    .fleet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; }
+    .fleet-title { color: var(--snow); font-weight: 500; }
+    .fleet-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+    .fleet-cell { min-width: 0; min-height: 54px; display: grid; align-content: center; justify-items: start; gap: 2px; padding: 6px; border: 1px solid var(--slate-strong); background: var(--surface-1); color: var(--platinum); cursor: pointer; font-size: 10px; line-height: 14px; }
+    .fleet-cell::before { content: ""; width: 6px; height: 6px; background: var(--active); }
+    .fleet-cell.selected { border-color: var(--active-dim); box-shadow: inset 0 -2px var(--active-dim); }
+    .fleet-cell.fault { border-color: var(--fault); background: var(--fault-bg); color: var(--fault); }
+    .fleet-cell.fault::before { background: var(--fault); }
+    .fleet-cell span { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+    .fleet-cell small { color: var(--ash); font-size: 9px; }
+    .node { min-width: 0; min-height: 104px; display: grid; align-content: center; gap: 7px; padding: 13px; border: 1px solid var(--slate); background: var(--surface-2); }
+    .node.active { border-color: var(--active-dim); box-shadow: inset 0 -2px var(--active-dim); }
+    .node.pending { border-style: dashed; background: var(--surface-1); }
+    .node-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .state { display: flex; align-items: center; gap: 7px; color: var(--platinum); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+    .state::before { content: ""; width: 6px; height: 6px; flex: 0 0 auto; background: currentColor; }
+    .node.active .state { color: var(--active); }
+    .node-id { overflow: hidden; color: var(--ash); font-family: var(--mono); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .node-name { color: var(--snow); font-size: 15px; line-height: 19px; font-weight: 500; }
+    .node-meta { color: var(--ash); font-size: 10px; line-height: 15px; }
+    .edge { min-width: 0; display: grid; grid-template-rows: 18px 16px 18px; align-items: center; text-align: center; }
+    .edge-copy { overflow: hidden; color: var(--ash); font-size: 9px; letter-spacing: .04em; text-overflow: ellipsis; white-space: nowrap; }
+    .edge-copy.active { color: var(--active); }
+    .line { position: relative; height: 1px; background: var(--slate-strong); }
+    .line::after { content: ""; position: absolute; right: -1px; top: -3px; border-top: 3px solid transparent; border-bottom: 3px solid transparent; border-left: 6px solid var(--active); }
+
+    .selection { display: grid; grid-template-columns: 210px 1fr; border-top: 1px solid var(--slate); }
+    .selection-title { display: grid; align-content: center; gap: 4px; padding: 12px 16px; border-right: 1px solid var(--slate); }
+    .selection-copy { display: grid; align-content: center; gap: 5px; padding: 12px 18px; }
+    .selection-copy strong { color: var(--snow); font-weight: 500; }
+
+    .evidence { min-height: 0; display: grid; grid-template-rows: 44px 116px minmax(0, 1fr); overflow: hidden; }
+    .evidence-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 14px; border-bottom: 1px solid var(--slate); }
+    .evidence-header h2 { margin: 0; color: var(--platinum); font-family: var(--mono); font-size: 11px; line-height: 16px; font-weight: 500; letter-spacing: .08em; }
+    .evidence-meta { color: var(--steel); font-size: 10px; }
+    .proof { display: grid; align-content: center; gap: 6px; padding: 14px; border-bottom: 1px solid var(--slate); }
+    .proof-kicker { color: var(--ash); font-size: 10px; letter-spacing: .08em; }
+    .proof-value { margin: 0; color: var(--snow); font-size: 20px; line-height: 25px; font-weight: 400; }
+    .proof-value.active { color: var(--active); }
+    .proof-value.unknown { color: var(--warning); }
+    .proof-detail { margin: 0; color: var(--ash); }
+    .ledger { min-height: 0; display: grid; grid-template-rows: 1fr 92px; }
+    .payload, .ack { min-height: 0; display: grid; grid-template-rows: 32px minmax(0, 1fr); }
+    .payload { border-bottom: 1px solid var(--slate); }
+    .ledger-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 14px; border-bottom: 1px solid var(--slate); color: var(--ash); font-family: var(--mono); font-size: 10px; letter-spacing: .05em; }
+    pre { min-height: 0; margin: 0; overflow: auto; padding: 11px 14px; color: var(--platinum); font-size: 11px; line-height: 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .ack-value { align-self: center; margin: 0; padding: 0 14px; color: var(--ash); font-family: var(--mono); font-size: 11px; line-height: 16px; overflow-wrap: anywhere; }
+    .ack-value strong { color: var(--active); font-weight: 500; }
+
+    .run-rail { display: grid; grid-template-columns: minmax(210px, .72fr) minmax(320px, 1.5fr) auto; align-items: stretch; }
+    .rail-identity, .rail-result, .rail-actions { min-width: 0; padding: 13px 16px; }
+    .rail-identity { display: grid; align-content: center; gap: 4px; border-right: 1px solid var(--slate); }
+    .rail-meta { overflow: hidden; color: var(--ash); font-size: 10px; line-height: 15px; text-overflow: ellipsis; white-space: nowrap; }
+    .rail-meta strong { color: var(--platinum); font-weight: 500; }
+    .rail-result { display: grid; align-content: center; gap: 4px; }
+    .result { margin: 0; color: var(--snow); font-size: 17px; line-height: 22px; }
+    .result.active { color: var(--active); }
+    .result-note { margin: 0; color: var(--ash); font-size: 12px; }
+    .rail-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; border-left: 1px solid var(--slate); }
+    .primary, .ghost { min-height: 48px; min-width: 208px; padding: 0 17px; cursor: pointer; font-family: var(--mono); font-size: 12px; font-weight: 500; }
+    .primary { border: 1px solid var(--active-dim); background: var(--active-bg); color: var(--active); }
+    .primary:hover:not(:disabled) { border-color: var(--active); }
+    .primary:active:not(:disabled) { background: var(--carbon); }
+    .ghost { min-width: 116px; border: 1px solid var(--slate-strong); background: transparent; color: var(--platinum); }
+    .ghost:hover:not(:disabled) { border-color: var(--ash); }
+    .local-action { display: none; }
+    .local-mode .local-action { display: inline-flex; align-items: center; justify-content: center; }
+
+    .visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+    @media (min-width: 1800px) and (min-height: 1000px) {
+      .app { grid-template-rows: 64px minmax(0, 1fr); }
+      .header { padding: 0 40px; }
+      .canvas { grid-template-rows: 80px minmax(0, 1fr) 112px; padding: 24px 40px 40px; }
+      .workspace { grid-template-columns: minmax(0, 2.17fr) minmax(520px, 1fr); }
+      .stage { grid-template-rows: 76px minmax(0, 1fr) 108px; }
+      .topology { grid-template-columns: minmax(390px, 1.55fr) minmax(84px, .35fr) minmax(190px, .75fr) minmax(84px, .35fr) minmax(190px, .75fr); padding: 34px; }
+      .fleet-cell { min-height: 66px; padding: 9px; }
+      .node { min-height: 118px; padding: 16px; }
+    }
+
+    @media (max-width: 1179px) {
+      .header { grid-template-columns: 1fr auto; padding: 0 20px; }
+      .control-plane { display: none; }
+      .canvas { display: block; padding: 18px 20px 120px; }
+      .title-row { min-height: 76px; }
+      .workspace { grid-template-columns: 1fr; margin-top: 16px; }
+      .stage { min-height: 590px; }
+      .evidence { min-height: 520px; }
+      .run-rail { position: fixed; z-index: 10; right: 0; bottom: 0; left: 0; min-height: 104px; background: var(--surface-1); padding-bottom: env(safe-area-inset-bottom); }
+    }
+
+    @media (max-width: 760px) {
+      body { font-size: 16px; }
+      .brand span, .runtime-age, .cloud-link { display: none; }
+      .header { padding: 0 14px; }
+      .canvas { padding: 14px 14px 158px; }
+      .title-row { display: block; }
+      .disclosure { margin-top: 8px; text-align: left; }
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .metric:nth-child(2) { border-right: 0; }
+      .metric:nth-child(-n+2) { border-bottom: 1px solid var(--slate); }
+      .stage { grid-template-rows: 132px minmax(760px, 1fr) 128px; }
+      .topology { grid-template-columns: 1fr; gap: 20px; padding: 20px; }
+      .fleet-grid { grid-template-columns: repeat(2, 1fr); }
+      .edge { min-height: 48px; transform: rotate(90deg); }
+      .edge-copy { transform: rotate(-90deg); }
+      .selection { grid-template-columns: 1fr; }
+      .selection-title { border-right: 0; border-bottom: 1px solid var(--slate); }
+      .run-rail { grid-template-columns: 1fr auto; }
+      .rail-identity { display: none; }
+      .rail-actions { padding: 8px; }
+      .primary { min-width: 168px; }
+      .ghost, .local-action { display: none !important; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="header" aria-label="Demo runtime header">
+      <div class="brand">EXPANSO <span>LIVE PROOF</span></div>
+      <div class="control-plane" aria-label="Control and data plane"><span>CONTROL PLANE</span><b>EXPANSO CLOUD</b><span class="divider">|</span><span>DATA PLANE</span><b>EDGE → RECEIVER</b></div>
+      <div class="runtime" id="runtime-status"><span class="runtime-square" aria-hidden="true"></span><span id="runtime-label">CONNECTING</span><span class="runtime-age" id="runtime-age">no snapshot</span><a class="cloud-link" id="cloud-link" href="https://cloud.expanso.io" target="_blank" rel="noreferrer">Open Cloud ↗</a></div>
+    </header>
+
+    <main class="canvas">
+      <section class="title-row" aria-labelledby="page-title">
+        <div><p class="eyebrow">DEMO 02 / SIMULATED SOURCE · WIND-WEST FLEET</p><h1 id="page-title">Which site broke?</h1></div>
+        <p class="disclosure"><strong>SIMULATED SOURCE · one deterministic SENSOR_TIMEOUT every 5 seconds</strong><span id="mode-disclosure">CONTROL: EXPANSO CLOUD · runtime proof pending. Attribution comes only from receiver payload fields.</span></p>
+      </section>
+
+      <div class="workspace">
+        <section class="stage" aria-label="Fleet and receiver data path">
+          <div class="metrics">
+            <div class="metric"><span class="label">NODES ONLINE</span><strong class="metric-value" id="nodes-online">—</strong><span class="source">RUNTIME HEALTH</span></div>
+            <div class="metric"><span class="label">FAULT INTERVAL</span><strong class="metric-value" id="fault-interval">—</strong><span class="source">DETERMINISTIC SCHEDULE</span></div>
+            <div class="metric"><span class="label">ATTRIBUTABLE FAULTS</span><strong class="metric-value" id="attributable">—</strong><span class="source">RECEIVER PAYLOAD FIELDS</span></div>
+            <div class="metric"><span class="label">FAULTS RECEIVED</span><strong class="metric-value" id="faults-received">—</strong><span class="source">RECEIVER OBSERVED</span></div>
+          </div>
+
+          <div class="topology" role="group" aria-describedby="topology-description">
+            <div class="fleet">
+              <div class="fleet-head"><span class="state" id="fleet-state">AWAITING SNAPSHOT</span><span class="fleet-title">10-node turbine fleet</span><span class="node-id">WIND-WEST</span></div>
+              <div class="fleet-grid" id="fleet-grid" aria-label="Select a turbine node"></div>
+            </div>
+            <div class="edge"><span class="edge-copy">10 SOURCES</span><span class="line"></span><span class="edge-copy">EDGE INGEST</span></div>
+            <div class="node pending" id="context-step">
+              <div class="node-top"><span class="state" id="step-state">NOT DEPLOYED</span><span class="node-id">STEP</span></div>
+              <div class="node-name">attach site + node + version</div>
+              <div class="node-meta" id="step-revision">waiting for running revision</div>
+            </div>
+            <div class="edge"><span class="edge-copy" id="path-count">0 RECORDS</span><span class="line"></span><span class="edge-copy" id="path-state">SOURCE CONTEXT ABSENT</span></div>
+            <div class="node" id="receiver-node">
+              <div class="node-top"><span class="state" id="receiver-label">AWAITING SNAPSHOT</span><span class="node-id">RECEIVER</span></div>
+              <div class="node-name">Demo receiver</div>
+              <div class="node-meta" id="receiver-state">Waiting for first fault</div>
+            </div>
+            <p class="visually-hidden" id="topology-description">Ten synthetic turbine nodes send records through an optional source-context pipeline step to the demo receiver. A fault is attributed only when the receiver payload contains source context.</p>
+          </div>
+
+          <div class="selection">
+            <div class="selection-title"><span class="label">FLEET SELECTION</span><strong id="selection-title">No node selected</strong><span class="source">URL-PRESERVED VIEW</span></div>
+            <div class="selection-copy"><strong id="selection-copy">Select any turbine to inspect its runtime health.</strong><span class="source" id="selection-detail">Selection never creates receiver attribution.</span></div>
+          </div>
+        </section>
+
+        <aside class="evidence" aria-labelledby="evidence-title">
+          <div class="evidence-header"><h2 id="evidence-title">RECEIVER EVIDENCE</h2><span class="evidence-meta" id="evidence-time">WAITING</span></div>
+          <div class="proof"><span class="proof-kicker" id="proof-kicker">WAITING FOR FAULT</span><p class="proof-value" id="proof-value">No receiver fault yet</p><p class="proof-detail" id="proof-detail">The deterministic fault arrives every five seconds.</p></div>
+          <div class="ledger">
+            <div class="payload"><div class="ledger-heading"><span>PINNED FAULT PAYLOAD</span><span id="payload-id">NO EVENT</span></div><pre id="payload">Waiting for the receiver’s first SENSOR_TIMEOUT…</pre></div>
+            <div class="ack"><div class="ledger-heading"><span>RECEIVER ACKNOWLEDGEMENT</span><span>HTTP 200</span></div><p class="ack-value" id="ack">No receiver acknowledgement yet.</p></div>
+          </div>
+        </aside>
+      </div>
+
+      <section class="run-rail" aria-label="Run controls and result">
+        <div class="rail-identity"><span class="label">DETERMINISTIC RUN</span><span class="rail-meta">RUN <strong id="run-id">—</strong></span><span class="rail-meta">SEED <strong id="seed">—</strong> · REV <strong id="revision">—</strong></span></div>
+        <div class="rail-result" aria-live="polite"><p class="result" id="result">Connecting to the live receiver…</p><p class="result-note" id="result-note">Clipboard actions never change proof state.</p></div>
+        <div class="rail-actions"><button class="ghost local-action" id="local-action" type="button">Run local rehearsal</button><button class="ghost" id="reset" type="button" hidden>Reset run</button><button class="primary" id="primary" type="button">Copy pipeline step</button></div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const PIPELINE_FRAGMENT = `- mapping: |
+    root = this
+    root.source_context.node_id = env("DEMO_NODE_ID").or(metadata("node_label_node_id")).or(metadata("node_id"))
+    root.source_context.site_id = env("DEMO_SITE_ID").or(metadata("node_label_site_id"))
+    root.source_context.asset_id = env("DEMO_ASSET_ID").or(metadata("node_label_asset_id"))
+    root.source_context.region = env("DEMO_REGION").or(metadata("node_label_region"))
+    root.source_context.app_version = env("DEMO_APP_VERSION").or(metadata("node_label_app_version"))
+    root.source_context.pipeline_version = "lineage-v2"`;
+      const els = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
+      let snapshot = null;
+      let lastSnapshotSeq = -1;
+      let lastSnapshotAt = 0;
+      let copied = false;
+      let actionBusy = false;
+      let pollTimer = null;
+      let eventSource = null;
+      let selectedAsset = new URLSearchParams(location.search).get("node");
+
+      const shortId = (value) => value ? String(value).slice(0, 8) : "—";
+      const enrichedFault = (data) => data.evidence?.first_enriched_fault || null;
+      const sourceContext = (data) => enrichedFault(data)?.source_context || null;
+      const visibleAsset = (context) => context?.asset_id || null;
+      const contextComplete = (context) => Boolean(context?.site_id && visibleAsset(context) && context?.app_version && context?.pipeline_version);
+      const attributionVerified = (data) => contextComplete(sourceContext(data));
+      const isMeasuredCount = (value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
+      const fleetHealthLabel = (data) => {
+        const metrics = data.metrics || {};
+        const control = data.control_plane || {};
+        const online = isMeasuredCount(metrics.sites_online) ? metrics.sites_online : control.nodes_running;
+        const expected = isMeasuredCount(metrics.sites_expected)
+          ? metrics.sites_expected
+          : isMeasuredCount(control.nodes_scheduled) ? control.nodes_scheduled : 10;
+        return isMeasuredCount(online) ? `${Number(online)} / ${Number(expected)}` : `UNVERIFIED / ${Number(expected)}`;
+      };
+
+      function displayPayload(event) {
+        if (!event) return null;
+        const output = {
+          event_id: event.event_id,
+          observed_at: event.observed_at,
+          level: event.level,
+          code: event.code,
+          message: event.message,
+        };
+        const context = event.source_context;
+        if (contextComplete(context)) {
+          output.source_context = {
+            site_id: context.site_id,
+            asset_id: visibleAsset(context),
+            region: context.region,
+            app_version: context.app_version,
+            pipeline_version: context.pipeline_version,
+          };
+        }
+        return output;
+      }
+
+      function selectAsset(assetId, updateUrl = true) {
+        selectedAsset = assetId;
+        if (updateUrl) {
+          const url = new URL(location.href);
+          if (assetId) url.searchParams.set("node", assetId); else url.searchParams.delete("node");
+          history.replaceState(null, "", url);
+        }
+        if (snapshot) render(snapshot);
+      }
+
+      function renderFleet(data, faultAsset) {
+        els["fleet-grid"].replaceChildren();
+        for (const node of data.nodes || []) {
+          const assetId = node.asset_id || node.label?.replace("Source ", "SRC ") || "source";
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "fleet-cell";
+          button.classList.toggle("selected", selectedAsset === assetId);
+          button.classList.toggle("fault", faultAsset === assetId);
+          button.setAttribute("aria-pressed", String(selectedAsset === assetId));
+          button.setAttribute("aria-label", `${assetId}, ${faultAsset === assetId ? "fault identified by receiver" : node.health || "unknown health"}`);
+          const name = document.createElement("span");
+          name.textContent = assetId.replace("turbine-", "TURB ");
+          const status = document.createElement("small");
+          status.textContent = faultAsset === assetId ? "FAULT" : String(node.health || "UNKNOWN").toUpperCase();
+          button.append(name, status);
+          button.addEventListener("click", () => selectAsset(assetId));
+          els["fleet-grid"].append(button);
+        }
+      }
+
+      function render(data) {
+        snapshot = data;
+        const metrics = data.metrics || {};
+        const control = data.control_plane || {};
+        const context = sourceContext(data);
+        const verified = attributionVerified(data);
+        const fault = enrichedFault(data) || data.evidence?.baseline_fault || null;
+        const faultAsset = verified ? visibleAsset(context) : null;
+        const mode = data.mode || control.mode || "local";
+        const isLocal = mode === "local";
+        const revision = control.pipeline_revision || data.pipeline?.variant || "unknown";
+        const acknowledgement = verified
+          ? data.evidence?.first_enriched_acknowledgement
+          : data.evidence?.baseline_acknowledgement;
+
+        if (faultAsset && !selectedAsset) {
+          selectedAsset = faultAsset;
+          const url = new URL(location.href);
+          url.searchParams.set("node", faultAsset);
+          history.replaceState(null, "", url);
+        }
+        renderFleet(data, faultAsset);
+
+        els.app.classList.toggle("local-mode", isLocal);
+        els["mode-disclosure"].textContent = isLocal ? "LOCAL REHEARSAL · Cloud deployment remains a visible manual step." : "Cloud is the control plane. Attribution comes only from receiver payload fields.";
+        els["cloud-link"].href = control.cloud_url || "https://cloud.expanso.io";
+        els["nodes-online"].textContent = fleetHealthLabel(data);
+        els["fleet-state"].textContent = isMeasuredCount(metrics.sites_online) ? "FLEET OBSERVED" : "FLEET UNVERIFIED";
+        els["fault-interval"].textContent = `${(Number(metrics.fault_schedule_ms || 0) / 1000).toFixed(1)} s`;
+        els.attributable.textContent = `${Number(metrics.faults_attributable_total || 0)} / ${Number(metrics.faults_received_total || 0)}`;
+        els.attributable.classList.toggle("active", verified);
+        els["faults-received"].textContent = Number(metrics.faults_received_total || 0).toLocaleString();
+        els["context-step"].classList.toggle("active", verified || data.pipeline?.variant === "enriched");
+        els["context-step"].classList.toggle("pending", !(verified || data.pipeline?.variant === "enriched"));
+        els["step-state"].textContent = verified ? "ACTIVE · VERIFIED" : data.pipeline?.variant === "enriched" ? "ACTIVE · WAITING" : "NOT DEPLOYED";
+        els["step-revision"].textContent = data.pipeline?.variant === "enriched" ? revision : "waiting for running revision";
+        els["path-count"].textContent = `${Number(metrics.records_received_total || 0).toLocaleString()} RECORDS`;
+        els["path-state"].textContent = verified ? "SOURCE CONTEXT PRESENT" : "SOURCE CONTEXT ABSENT";
+        els["path-state"].classList.toggle("active", verified);
+        els["receiver-state"].textContent = verified ? `${faultAsset} identified by payload` : fault ? "Fault source remains unknown" : "Waiting for first fault";
+        els["receiver-label"].textContent = acknowledgement?.event_id ? "RECEIVER ACKNOWLEDGED" : fault ? "FAULT RECEIVED" : "RECEIVER WAITING";
+        els["receiver-node"].classList.toggle("active", Boolean(acknowledgement?.event_id));
+
+        const selectedNode = (data.nodes || []).find((node) => node.asset_id === selectedAsset);
+        els["selection-title"].textContent = selectedNode ? selectedAsset : "No node selected";
+        els["selection-copy"].textContent = selectedNode && verified && selectedAsset === faultAsset
+          ? `${selectedAsset}: receiver-observed SENSOR_TIMEOUT; runtime still ${String(selectedNode.health || "unknown").toUpperCase()}.`
+          : selectedNode
+            ? `${selectedAsset} runtime health: ${String(selectedNode.health || "unknown").toUpperCase()}.`
+            : "Select any turbine to inspect its runtime health.";
+        els["selection-detail"].textContent = selectedNode && verified && selectedAsset === faultAsset ? "This selection matches the receiver-derived fault asset." : "Selection never creates receiver attribution.";
+
+        els["evidence-time"].textContent = data.server_time ? new Date(data.server_time).toLocaleTimeString([], { hour12: false }) : "WAITING";
+        els.payload.textContent = fault ? JSON.stringify(displayPayload(fault), null, 2) : "Waiting for the receiver’s first SENSOR_TIMEOUT…";
+        els["payload-id"].textContent = fault?.event_id ? shortId(fault.event_id) : "NO EVENT";
+        els.ack.innerHTML = "";
+        if (acknowledgement?.event_id) {
+          const strong = document.createElement("strong");
+          strong.textContent = `ACK ${shortId(acknowledgement.event_id)}`;
+          els.ack.append(strong, document.createTextNode(` · ${acknowledgement.acknowledged_at || "receiver time unavailable"}`));
+        } else {
+          els.ack.textContent = fault ? "Fault received; matching acknowledgement record is pending." : "No receiver acknowledgement yet.";
+        }
+
+        els["run-id"].textContent = shortId(data.run_id);
+        els.seed.textContent = data.seed ?? "—";
+        els.revision.textContent = revision;
+        if (verified) {
+          els["proof-kicker"].textContent = "FIRST ENRICHED FAULT · ATTRIBUTABLE";
+          els["proof-value"].textContent = `${context.site_id} / ${faultAsset}`;
+          els["proof-value"].classList.add("active");
+          els["proof-value"].classList.remove("unknown");
+          els["proof-detail"].textContent = `App ${context.app_version} · ${context.pipeline_version} · receiver payload fields`;
+          els.result.textContent = `Fault traced to ${context.site_id} / ${faultAsset}, app ${context.app_version}, from the first enriched event.`;
+          els.result.classList.add("active");
+          els["result-note"].textContent = "The visible turbine identity comes from source_context.asset_id at the receiver.";
+        } else if (fault) {
+          els["proof-kicker"].textContent = "SENSOR_TIMEOUT · RECEIVER OBSERVED";
+          els["proof-value"].textContent = "SOURCE UNKNOWN";
+          els["proof-value"].classList.remove("active");
+          els["proof-value"].classList.add("unknown");
+          els["proof-detail"].textContent = "Source context is absent at the receiver.";
+          els.result.textContent = copied ? "Pipeline step copied. Deploy it in Expanso Cloud." : "The receiver sees the fault, but not the asset that produced it.";
+          els.result.classList.remove("active");
+          els["result-note"].textContent = copied ? "Attribution remains unknown until a later receiver payload contains context." : "Private simulator routing is not receiver attribution.";
+        } else {
+          els["proof-kicker"].textContent = "WAITING FOR FAULT";
+          els["proof-value"].textContent = "No receiver fault yet";
+          els["proof-value"].classList.remove("active", "unknown");
+          els["proof-detail"].textContent = "The deterministic SENSOR_TIMEOUT arrives every five seconds.";
+          els.result.textContent = "Waiting for the first receiver fault…";
+          els.result.classList.remove("active");
+          els["result-note"].textContent = "No source claim is made before the receiver payload arrives.";
+        }
+
+        els.primary.textContent = verified ? "Context verified" : copied ? "Copied" : "Copy pipeline step";
+        els.primary.disabled = actionBusy || verified;
+        els["local-action"].hidden = data.pipeline?.variant === "enriched";
+        els["local-action"].disabled = actionBusy;
+        els.reset.hidden = !verified;
+        updateFreshness();
+      }
+
+      function acceptSnapshot(next) {
+        if (!next || typeof next.snapshot_seq !== "number") return;
+        if (snapshot?.run_id === next.run_id && next.snapshot_seq <= lastSnapshotSeq) return;
+        if (snapshot?.run_id !== next.run_id) {
+          lastSnapshotSeq = -1;
+          copied = false;
+        }
+        lastSnapshotSeq = next.snapshot_seq;
+        lastSnapshotAt = performance.now();
+        render(next);
+      }
+
+      async function fetchSnapshot() {
+        try {
+          const response = await fetch("/api/snapshot", { cache: "no-store" });
+          if (!response.ok) throw new Error(`snapshot HTTP ${response.status}`);
+          acceptSnapshot(await response.json());
+        } catch (error) {
+          els["result-note"].textContent = `Snapshot unavailable: ${error.message}`;
+          updateFreshness();
+        }
+      }
+
+      function startPolling() {
+        if (pollTimer) return;
+        pollTimer = window.setInterval(fetchSnapshot, 1000);
+        fetchSnapshot();
+      }
+
+      function stopPolling() {
+        if (!pollTimer) return;
+        window.clearInterval(pollTimer);
+        pollTimer = null;
+      }
+
+      function connectEvents() {
+        eventSource = new EventSource("/api/events");
+        eventSource.addEventListener("snapshot", (event) => {
+          try { acceptSnapshot(JSON.parse(event.data)); } catch { /* preserve last atomic snapshot */ }
+        });
+        eventSource.addEventListener("open", stopPolling);
+        eventSource.addEventListener("error", startPolling);
+      }
+
+      function updateFreshness() {
+        const ageMs = lastSnapshotAt ? performance.now() - lastSnapshotAt : Infinity;
+        const stale = ageMs > 2000;
+        const expired = ageMs > 5000;
+        els["runtime-status"].classList.toggle("stale", stale);
+        els["runtime-label"].textContent = stale ? "STALE" : "CONNECTED";
+        els["runtime-age"].textContent = Number.isFinite(ageMs) ? `${(ageMs / 1000).toFixed(1)}s ago` : "no snapshot";
+        if (snapshot && stale) els["result-note"].textContent = `Measurements paused. Last receiver update ${(ageMs / 1000).toFixed(1)}s ago.`;
+        els["local-action"].disabled = actionBusy || expired;
+        els.reset.disabled = actionBusy || expired;
+      }
+
+      async function writeClipboard(text) {
+        try {
+          if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
+          await navigator.clipboard.writeText(text);
+          return;
+        } catch {
+          const fallback = document.createElement("textarea");
+          fallback.value = text;
+          fallback.setAttribute("readonly", "");
+          fallback.style.position = "fixed";
+          fallback.style.opacity = "0";
+          document.body.append(fallback);
+          fallback.select();
+          const copiedWithFallback = document.execCommand("copy");
+          fallback.remove();
+          if (!copiedWithFallback) throw new Error("Clipboard write rejected");
+        }
+      }
+
+      async function copyPipeline() {
+        try {
+          await writeClipboard(PIPELINE_FRAGMENT);
+          copied = true;
+          els.primary.textContent = "Copied";
+          els.result.textContent = "Pipeline step copied. Deploy it in Expanso Cloud.";
+          els["result-note"].textContent = "The payload above remains SOURCE UNKNOWN until receiver context arrives.";
+        } catch {
+          els.result.textContent = "Clipboard access failed. Copy the validated step from the page source.";
+          els["result-note"].textContent = "No runtime state changed.";
+        }
+      }
+
+      async function post(path) {
+        actionBusy = true;
+        updateFreshness();
+        try {
+          const response = await fetch(path, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() } });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return await response.json();
+        } finally {
+          actionBusy = false;
+          updateFreshness();
+        }
+      }
+
+      els.primary.addEventListener("click", copyPipeline);
+      els["local-action"].addEventListener("click", async () => {
+        try {
+          els["local-action"].textContent = "Rehearsing…";
+          await post("/api/actions/add-context");
+          els.result.textContent = "LOCAL REHEARSAL started. Waiting for receiver context.";
+          els["result-note"].textContent = "Production deployment still happens visibly in Expanso Cloud.";
+        } catch (error) {
+          els.result.textContent = "Local rehearsal could not start.";
+          els["result-note"].textContent = error.message;
+        } finally {
+          els["local-action"].textContent = "Run local rehearsal";
+        }
+      });
+      els.reset.addEventListener("click", async () => {
+        try {
+          await post("/api/reset");
+          copied = false;
+          await fetchSnapshot();
+        } catch (error) {
+          els.result.textContent = "Reset failed. The current proof remains visible.";
+          els["result-note"].textContent = error.message;
+        }
+      });
+      window.addEventListener("popstate", () => selectAsset(new URLSearchParams(location.search).get("node"), false));
+      window.setInterval(updateFreshness, 250);
+      fetchSnapshot();
+      connectEvents();
+      window.addEventListener("beforeunload", () => eventSource?.close());
+    })();
+  </script>
+</body>
+</html>

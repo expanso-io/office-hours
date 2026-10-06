@@ -1,0 +1,43 @@
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+warm:
+    ./scripts/democtl.sh warm
+
+validate:
+    ./scripts/democtl.sh validate
+
+start mode="local" variant="baseline":
+    ./scripts/democtl.sh start "{{mode}}" "{{variant}}"
+
+status:
+    ./scripts/democtl.sh status
+
+reset:
+    ./scripts/democtl.sh reset
+
+test:
+    ./scripts/democtl.sh test
+
+test-live:
+    ./scripts/democtl.sh test-live
+
+verify-browser:
+    ./scripts/democtl.sh verify-browser
+
+verify-cloud variant="filtered":
+    ./scripts/cloudctl.sh verify "{{variant}}"
+
+cloud-purge:
+    ./scripts/cloudctl.sh purge
+
+verify-cloud-stopped:
+    ./scripts/cloudctl.sh verify-stopped
+
+stop:
+    ./scripts/democtl.sh stop
+
+teardown-check:
+    ./scripts/teardown-audit.sh
+
+logs:
+    ./scripts/democtl.sh logs
