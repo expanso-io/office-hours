@@ -1,0 +1,78 @@
+# Pipeline Office Hours #00005: four pumps, three tiny models wired three ways,
+# and the pipeline decides what leaves the node.
+#
+# Plain `up` is the real thing: it starts this machine's office-hours node,
+# deploys the job through Expanso Cloud and serves the cockpit on
+# 127.0.0.1:19500. `up-offline` runs the same job files on a local-mode
+# Expanso Edge node with no credentials.
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+# Train the Python model, download the GGUF, pull the Ollama model, write the manifest.
+warm:
+    ./scripts/democtl.sh warm
+
+# Lint, unit tests and offline validation of every stage. Starts nothing.
+validate:
+    ./scripts/democtl.sh validate
+
+# Start the node, deploy stage 1 through Expanso Cloud, start the feed and the cockpit.
+up stage="1":
+    ./scripts/democtl.sh up cloud "{{stage}}"
+
+# The same on a local-mode Expanso Edge node: no Cloud, no credentials.
+up-offline stage="1":
+    ./scripts/democtl.sh up local "{{stage}}"
+
+# Deploy live.cloud.yaml after pasting a change into it.
+deploy:
+    ./scripts/democtl.sh deploy
+
+# Deploy a prepared stage: 1 route only, 2 Python, 3 both language models and the join, 4 wrong on purpose.
+stage n:
+    ./scripts/democtl.sh stage "{{n}}"
+
+# Roll the job back to the previous version's spec.
+rollback:
+    ./scripts/democtl.sh rollback
+
+versions:
+    ./scripts/democtl.sh versions
+
+versions-diff from="1" to="3":
+    ./scripts/democtl.sh versions-diff "{{from}}" "{{to}}"
+
+# Swap the Ollama model in the running pipeline (bench).
+ollama-model model="gemma3:270m":
+    ./scripts/democtl.sh ollama-model "{{model}}"
+
+# Stop llama-server under the running pipeline, then bring it back.
+break:
+    ./scripts/democtl.sh break
+
+heal:
+    ./scripts/democtl.sh heal
+
+# Change the feed's readings per second while it runs.
+rate n:
+    ./scripts/democtl.sh rate "{{n}}"
+
+status:
+    ./scripts/democtl.sh status
+
+# Stop the job, feed, node, llama-server and cockpit, unload the Ollama model, then prove it.
+down:
+    ./scripts/democtl.sh stop
+    ./scripts/teardown-audit.sh
+
+stop:
+    ./scripts/democtl.sh stop
+
+teardown-check:
+    ./scripts/teardown-audit.sh
+
+test:
+    ./scripts/democtl.sh validate
+
+logs:
+    ./scripts/democtl.sh logs

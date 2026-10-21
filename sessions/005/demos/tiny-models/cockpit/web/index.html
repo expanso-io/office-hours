@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Three tiny models, one stream</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/theme.js"></script>
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>Three tiny models, one stream</h1>
+      <p id="where" class="where">Connecting to the cockpit server</p>
+    </div>
+    <button id="theme" class="theme" type="button" aria-pressed="false">Dark theme</button>
+  </header>
+
+  <dl class="flow" aria-label="Records in and out of the node">
+    <div><dt>Records in</dt><dd id="in-rate">–</dd></div>
+    <div><dt>Records out</dt><dd id="out-rate">–</dd></div>
+    <div><dt>Kept on this node</dt><dd id="kept">–</dd></div>
+    <div><dt>Bytes in</dt><dd id="in-bytes">–</dd></div>
+    <div><dt>Bytes out</dt><dd id="out-bytes">–</dd></div>
+    <div><dt>Degraded calls</dt><dd id="degraded">–</dd></div>
+    <div><dt>Dead letters</dt><dd id="dead">–</dd></div>
+  </dl>
+
+  <main class="grid">
+    <section class="tail-area" aria-labelledby="tail-h">
+      <h2 id="tail-h">Leaving the node</h2>
+      <table class="tail">
+        <colgroup>
+          <col class="c-time"><col class="c-asset"><col class="c-what"><col class="c-model"><col class="c-model"><col class="c-model">
+        </colgroup>
+        <thead>
+          <tr>
+            <th scope="col">Time</th>
+            <th scope="col">Pump</th>
+            <th scope="col">Reading or note</th>
+            <th scope="col">Python</th>
+            <th scope="col">Ollama</th>
+            <th scope="col">Direct call</th>
+          </tr>
+        </thead>
+        <tbody id="tail"></tbody>
+      </table>
+    </section>
+
+    <section class="models-area" aria-labelledby="models-h">
+      <h2 id="models-h">The three models</h2>
+      <table class="models">
+        <thead>
+          <tr>
+            <th scope="col"><span class="visually-hidden">Measure</span></th>
+            <th scope="col">Python</th>
+            <th scope="col">Ollama</th>
+            <th scope="col">Direct call</th>
+          </tr>
+        </thead>
+        <tbody id="models"></tbody>
+      </table>
+      <p class="hint">Sizes are the model files on this machine. Timings are measured by the pipeline around each call, over the last 60 seconds of records that left the node.</p>
+    </section>
+
+    <section class="json-area" aria-labelledby="note-h">
+      <h2 id="note-h">Latest note</h2>
+      <pre id="note" class="json"><span class="skeleton-line"></span><span class="skeleton-line short"></span><span class="skeleton-line"></span></pre>
+      <h2 id="alert-h">Latest anomaly</h2>
+      <pre id="alert" class="json"><span class="skeleton-line"></span><span class="skeleton-line short"></span><span class="skeleton-line"></span></pre>
+    </section>
+  </main>
+</body>
+</html>

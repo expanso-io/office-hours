@@ -1,0 +1,72 @@
+# Pipeline Office Hours #00005 - three tiny models on one Expanso Edge stream.
+#
+# `just up` deploys the job through Expanso Cloud and brings up the cockpit on
+# 127.0.0.1:19500. `just up-offline` runs the same job files on a local-mode
+# Expanso Edge node with no credentials.
+#
+# Each demo keeps its own justfile and is the authority on its own lifecycle;
+# this file fans out.
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+demos := "tiny-models"
+
+# Train the Python model, download the GGUF, pull the Ollama model, write the manifest.
+warm:
+    for d in {{demos}}; do echo "== warm $d"; just -d demos/$d -f demos/$d/justfile warm; done
+
+# Config-only checks; safe to run any time.
+validate:
+    for d in {{demos}}; do echo "== validate $d"; just -d demos/$d -f demos/$d/justfile validate; done
+
+# Start the node, deploy stage 1 through Expanso Cloud, start the feed and the cockpit.
+up stage="1":
+    for d in {{demos}}; do echo "== up $d"; just -d demos/$d -f demos/$d/justfile up "{{stage}}"; done
+
+# Same demo on a local-mode Expanso Edge node, no Cloud and no credentials.
+up-offline stage="1":
+    for d in {{demos}}; do echo "== up-offline $d"; just -d demos/$d -f demos/$d/justfile up-offline "{{stage}}"; done
+
+deploy:
+    just -d demos/tiny-models -f demos/tiny-models/justfile deploy
+
+stage n:
+    just -d demos/tiny-models -f demos/tiny-models/justfile stage "{{n}}"
+
+rollback:
+    just -d demos/tiny-models -f demos/tiny-models/justfile rollback
+
+versions:
+    just -d demos/tiny-models -f demos/tiny-models/justfile versions
+
+versions-diff from="1" to="3":
+    just -d demos/tiny-models -f demos/tiny-models/justfile versions-diff "{{from}}" "{{to}}"
+
+ollama-model model="gemma3:270m":
+    just -d demos/tiny-models -f demos/tiny-models/justfile ollama-model "{{model}}"
+
+break:
+    just -d demos/tiny-models -f demos/tiny-models/justfile break
+
+heal:
+    just -d demos/tiny-models -f demos/tiny-models/justfile heal
+
+rate n:
+    just -d demos/tiny-models -f demos/tiny-models/justfile rate "{{n}}"
+
+status:
+    for d in {{demos}}; do echo "== $d"; just -d demos/$d -f demos/$d/justfile status; done
+
+# Stop everything, then prove every port, process, model and Cloud execution is gone.
+down:
+    for d in {{demos}}; do echo "== stop $d"; just -d demos/$d -f demos/$d/justfile stop || true; done
+    for d in {{demos}}; do echo "== teardown-check $d"; just -d demos/$d -f demos/$d/justfile teardown-check; done
+
+teardown-check:
+    for d in {{demos}}; do echo "== teardown-check $d"; just -d demos/$d -f demos/$d/justfile teardown-check; done
+
+test:
+    for d in {{demos}}; do echo "== test $d"; just -d demos/$d -f demos/$d/justfile test; done
+
+logs:
+    for d in {{demos}}; do echo "== logs $d"; just -d demos/$d -f demos/$d/justfile logs; done

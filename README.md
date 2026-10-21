@@ -23,6 +23,7 @@ machine can do it.
 | [Setup](#setup) | Connect this machine to the cluster as a node | 10 min, once |
 | [001 — CSV to Parquet, dead letters, hashing](sessions/001/README.md) | Filter, route, reject bad rows, hash identifiers | 20 min |
 | [002 — Binary feeds, multiline events, benchmarking](sessions/002/README.md) | Stream bytes into a node, frame stack traces, change a running pipeline, measure throughput | 20 min |
+| [005 — Three tiny models, one stream, three ways in](sessions/005/README.md) | Wire a Python model, an Ollama model, and a direct HTTP model into one pipeline, join notes to anomalies, and roll back a schema change | 30 min |
 
 ## Setup
 

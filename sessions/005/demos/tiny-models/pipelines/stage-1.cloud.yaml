@@ -1,0 +1,50 @@
+name: office-hours-005-models
+namespace: default
+type: pipeline
+description: Four pumps, three tiny models wired three ways, and the pipeline decides what leaves the node.
+labels:
+  session: "005"
+selector:
+  match_labels:
+    role: office-hours
+config:
+  # The feed POSTs one JSON record per request: a reading or an operator note.
+  input:
+    http_server:
+      address: 127.0.0.1:19501
+      path: /ingest
+      allowed_verbs: [POST]
+      timeout: 5s
+
+  # Each pump's latest note, kept in memory on the node. Change 2 uses it.
+  cache_resources:
+    - label: notes
+      memory:
+        default_ttl: 10m
+        init_values:
+          pump-01: "null"
+          pump-02: "null"
+          pump-03: "null"
+          pump-04: "null"
+
+  pipeline:
+    # One record at a time: each model has exactly one call in flight.
+    threads: 1
+    processors:
+      # Paste each change above this line.
+      - mutation: root.left_node_at = now()
+
+  # Everything that leaves the node goes to the cockpit. If the cockpit cannot
+  # take it, the record lands in a dead-letter file on the node instead.
+  output:
+    fallback:
+      - http_client:
+          url: ${OH5_SINK_URL:http://127.0.0.1:19500/api/sink}
+          verb: POST
+          timeout: 2s
+          retries: 2
+          retry_period: 200ms
+          max_in_flight: 1
+      - file:
+          path: ${OH5_DEAD_LETTER_FILE:./office-hours-005-dead-letter.jsonl}
+          codec: lines

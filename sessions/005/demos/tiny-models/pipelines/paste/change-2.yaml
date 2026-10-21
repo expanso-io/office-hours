@@ -1,0 +1,71 @@
+      # Change 2: two language models read each note, one through Ollama and
+      # one by a direct HTTP call, and an anomalous reading picks up the last
+      # note about its pump.
+      - switch:
+          - check: this.kind == "note"
+            processors:
+              - mutation: meta t0 = timestamp_unix_nano()
+              - branch:
+                  request_map: root = this.text
+                  processors:
+                    - ollama_chat:
+                        server_address: ${OLLAMA_URL:http://127.0.0.1:11434}
+                        model: ${OLLAMA_MODEL:qwen2.5:0.5b}
+                        system_prompt: 'Read the factory maintenance note. Reply with JSON {"part": "<the machine part the note is about>", "symptom": "<what the note says about it, in a few words>"}.'
+                        prompt: 'Maintenance note: "${! content() }"'
+                        response_format: json
+                        temperature: 0
+                        max_tokens: 60
+                  result_map: |
+                    root.ollama = content().string().parse_json().catch({"unparsed": content().string()})
+                    root.ollama.call_ms = ((timestamp_unix_nano() - metadata("t0")) / 1000).round() / 1000
+              - catch:
+                  - mutation: 'root.ollama = {"error": error()}'
+              - mutation: meta t0 = timestamp_unix_nano()
+              - branch:
+                  request_map: |
+                    root.model = "${DIRECT_MODEL_NAME:smollm2-360m}"
+                    root.temperature = 0
+                    root.max_tokens = 40
+                    root.messages = [
+                      {"role": "system", "content": "Name the machine part this maintenance note is about. Use none if it names no part."},
+                      {"role": "user", "content": this.text}
+                    ]
+                    root.response_format = {"type": "json_schema", "json_schema": {"name": "part", "schema": {
+                      "type": "object",
+                      "properties": {
+                        "part": {"type": "string", "enum": ["bearing", "seal", "motor", "coupling", "strainer", "instrument", "valve", "none"]}
+                      },
+                      "required": ["part"]
+                    }}}
+                  processors:
+                    - http:
+                        url: ${DIRECT_MODEL_URL:http://127.0.0.1:18085/v1/chat/completions}
+                        verb: POST
+                        headers:
+                          Content-Type: application/json
+                          Authorization: Bearer ${DIRECT_MODEL_TOKEN:none}
+                        timeout: 10s
+                        retries: 0
+                  result_map: |
+                    root.direct = this.choices.index(0).message.content.parse_json().catch({"unparsed": this.choices.index(0).message.content})
+                    root.direct.call_ms = ((timestamp_unix_nano() - metadata("t0")) / 1000).round() / 1000
+              - catch:
+                  - mutation: 'root.direct = {"error": error()}'
+              - cache:
+                  resource: notes
+                  operator: set
+                  key: ${! this.asset }
+                  value: ${! content() }
+          - check: this.kind == "reading"
+            processors:
+              - branch:
+                  request_map: root = this.asset
+                  processors:
+                    - cache:
+                        resource: notes
+                        operator: get
+                        key: ${! content() }
+                  result_map: root.last_note = if this == null { null } else { this.without("kind", "asset") }
+              - catch:
+                  - mutation: root.last_note = null

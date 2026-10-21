@@ -1,0 +1,18 @@
+      # Change 1: the Python model scores every reading on this node, and only
+      # the anomalies leave. Notes pass straight through.
+      - switch:
+          - check: this.kind == "reading"
+            processors:
+              - mutation: meta t0 = timestamp_unix_nano()
+              - branch:
+                  request_map: root = this.without("kind", "asset", "ts")
+                  processors:
+                    - subprocess:
+                        name: ${OH5_UV:uv}
+                        args: [run, --project, "${OH5_DEMO_DIR}", --frozen, --quiet, python, "${OH5_DEMO_DIR}/scorer/score.py"]
+                  result_map: |
+                    root.python = this
+                    root.python.call_ms = ((timestamp_unix_nano() - metadata("t0")) / 1000).round() / 1000
+              - catch:
+                  - mutation: 'root.python = {"error": error()}'
+              - mapping: root = if this.python.anomaly == false { deleted() } else { this }
