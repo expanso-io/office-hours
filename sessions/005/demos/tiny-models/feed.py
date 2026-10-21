@@ -44,14 +44,16 @@ PUMP1_SPIKE_AMPS = 25.0
 
 NOTE_EVERY = 6.0
 BEARING_NOTE = "Drive end bearing running hot and getting noisier."
+STRAINER_NOTE = "Cleaned the suction strainer basket, differential pressure back to normal."
+OTHER_ASSETS = ("pump-01", "pump-02", "pump-04")
 
 # 24 notes, 18 routine and 6 describing a problem, cycled in this order.
 NOTES = (
-    "Routine walkdown, all readings normal.",
-    "Shift handover, nothing to report.",
-    "Visual check done, no issues found.",
+    STRAINER_NOTE,
+    "Routine walkdown complete, motor and coupling guards secure.",
+    "Shift handover complete, seal flush and sight glass normal.",
     "Drive end bearing rumbling and running hot.",
-    "Cleaned the suction strainer, all normal.",
+    "Visual check complete, discharge valve and gauge normal.",
     "Greased the drive end bearing as scheduled.",
     "Checked the seal flush line, flow is good.",
     "Mechanical seal weeping, small puddle under the pump.",
@@ -110,19 +112,27 @@ def reading(rng: random.Random, asset: str, t: float) -> dict:
 
 
 class Notes:
-    """Cycles the 24 notes, and slips in one bearing note per pump-03 rise."""
+    """Cycles the 24 notes, and slips in bearing notes when pump-03 is rising."""
 
     def __init__(self) -> None:
         self.index = 0
         self.last_bearing_cycle = -1
+        self.queued: list[dict] = []
+
+    def cue(self, kind: str) -> None:
+        bearing = {"kind": "note", "asset": "pump-03", "text": BEARING_NOTE}
+        strainer = {"kind": "note", "asset": "pump-01", "text": STRAINER_NOTE}
+        self.queued = [strainer, bearing] if kind == "strainer" else [bearing]
 
     def next(self, t: float) -> dict:
+        if self.queued:
+            return self.queued.pop(0)
         cycle = int(t // PUMP3_CYCLE)
         if pump3_rising(t) and cycle != self.last_bearing_cycle:
             self.last_bearing_cycle = cycle
             return {"kind": "note", "asset": "pump-03", "text": BEARING_NOTE}
         text = NOTES[self.index % len(NOTES)]
-        asset = ASSETS[self.index % len(ASSETS)]
+        asset = OTHER_ASSETS[self.index % len(OTHER_ASSETS)]
         self.index += 1
         return {"kind": "note", "asset": asset, "text": text}
 
@@ -171,11 +181,21 @@ def read_rate(path: Path, default: float) -> float:
     return value if 1 <= value <= 1000 else default
 
 
+def pop_cue(path: Path) -> str | None:
+    try:
+        kind = path.read_text().strip()
+        path.unlink()
+        return kind or "bearing"
+    except OSError:
+        return None
+
+
 def run(url: str, runtime: Path, rate: float, seed: int) -> None:
     rng = random.Random(seed)
     notes = Notes()
     counters = Counters(runtime / "feed.json")
     rate_file = runtime / "feed-rate"
+    cue_file = runtime / "note-cue"
     stop = False
 
     def halt(*_args) -> None:
@@ -186,20 +206,27 @@ def run(url: str, runtime: Path, rate: float, seed: int) -> None:
     signal.signal(signal.SIGINT, halt)
 
     t0 = time.monotonic()
+    t_offset = 45.0
     next_reading = t0
     next_note = t0 + NOTE_EVERY / 2
     next_write = t0
     sent = 0
     while not stop:
         now = time.monotonic()
-        t = now - t0
+        cue = pop_cue(cue_file)
+        if cue:
+            notes.cue(cue)
+            next_note = min(next_note, now + 1.0)
+            if (now - t0 + t_offset) % PUMP3_CYCLE < 60:
+                t_offset = 65.0 - (now - t0) % PUMP3_CYCLE
+        t = now - t0 + t_offset
         if now >= next_write:
             rate = read_rate(rate_file, rate)
             counters.write(rate)
             next_write = now + 1.0
         if now >= next_note:
             record = notes.next(t)
-            next_note += NOTE_EVERY
+            next_note = now + NOTE_EVERY
         elif now >= next_reading:
             record = reading(rng, ASSETS[sent % len(ASSETS)], t)
             sent += 1
@@ -226,7 +253,9 @@ def main() -> None:
     parser.add_argument("--rate", type=float, default=20.0, help="readings per second")
     parser.add_argument("--seed", type=int, default=5)
     default_runtime = Path(__file__).resolve().parent / ".runtime"
-    parser.add_argument("--runtime", type=Path, default=Path(os.environ.get("OH5_RUNTIME", default_runtime)))
+    parser.add_argument(
+        "--runtime", type=Path, default=Path(os.environ.get("OH5_RUNTIME", default_runtime))
+    )
     args = parser.parse_args()
     args.runtime.mkdir(parents=True, exist_ok=True)
     run(args.url, args.runtime, args.rate, args.seed)

@@ -66,6 +66,6 @@
                         resource: notes
                         operator: get
                         key: ${! content() }
-                  result_map: root.last_note = this.without("kind", "asset")
+                  result_map: root.last_note = if this == null { null } else { this.without("kind", "asset") }
               - catch:
                   - mutation: root.last_note = null

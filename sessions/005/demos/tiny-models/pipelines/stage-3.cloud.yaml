@@ -21,6 +21,11 @@ config:
     - label: notes
       memory:
         default_ttl: 10m
+        init_values:
+          pump-01: "null"
+          pump-02: "null"
+          pump-03: "null"
+          pump-04: "null"
 
   pipeline:
     # One record at a time: each model has exactly one call in flight.
@@ -112,7 +117,7 @@ config:
                         resource: notes
                         operator: get
                         key: ${! content() }
-                  result_map: root.last_note = this.without("kind", "asset")
+                  result_map: root.last_note = if this == null { null } else { this.without("kind", "asset") }
               - catch:
                   - mutation: root.last_note = null
       # Paste each change above this line.

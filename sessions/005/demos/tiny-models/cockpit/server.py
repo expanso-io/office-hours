@@ -24,7 +24,7 @@ WEB = Path(__file__).resolve().parent / "web"
 MODEL_KEYS = ("python", "ollama", "direct")
 WINDOW_S = 60
 RATE_S = 10
-TAIL = 10
+TAIL = 8
 CONTENT_TYPES = {
     ".html": "text/html; charset=utf-8",
     ".css": "text/css; charset=utf-8",
@@ -43,15 +43,18 @@ def percentile(values: list[float], pct: float) -> float | None:
 
 
 def is_degraded(record: dict) -> bool:
-    for key in MODEL_KEYS:
-        answer = record.get(key)
-        if isinstance(answer, dict) and "error" in answer:
-            return True
+    for source in (record, record.get("last_note") or {}):
+        if not isinstance(source, dict):
+            continue
+        for key in MODEL_KEYS:
+            answer = source.get(key)
+            if isinstance(answer, dict) and "error" in answer:
+                return True
     return False
 
 
 class Ledger:
-    """Everything the cockpit knows, updated by the sink and a 1 s sampler."""
+    """Everything the cockpit knows, updated by the sink and a 1 s ticker."""
 
     def __init__(self, runtime: Path, clock=time.time):
         self.runtime = runtime
@@ -64,7 +67,7 @@ class Ledger:
         self.latest_note: dict | None = None
         self.latest_alert: dict | None = None
         self.timings: dict[str, deque] = {key: deque() for key in MODEL_KEYS}
-        self.samples: deque[dict] = deque(maxlen=WINDOW_S + 5)
+        self.ticks: deque[dict] = deque(maxlen=WINDOW_S + 5)
 
     def sink(self, body: bytes) -> None:
         record = json.loads(body)
@@ -100,10 +103,10 @@ class Ledger:
         except (OSError, json.JSONDecodeError):
             return {}
 
-    def sample(self) -> None:
+    def tick(self) -> None:
         feed = self.feed()
         with self.lock:
-            self.samples.append(
+            self.ticks.append(
                 {
                     "at": self.clock(),
                     "in": feed.get("admitted", 0),
@@ -117,21 +120,22 @@ class Ledger:
             self.trim(self.clock())
 
     def rates(self) -> dict:
-        samples = list(self.samples)
-        if len(samples) < 2:
+        ticks = list(self.ticks)
+        if len(ticks) < 2:
             return {}
-        last = samples[-1]
-        first = samples[max(0, len(samples) - 1 - RATE_S)]
+        last = ticks[-1]
+        first = ticks[max(0, len(ticks) - 1 - RATE_S)]
         span = last["at"] - first["at"] or 1
-        window = samples[max(0, len(samples) - 1 - 30)]
-        records_in = last["in"] - window["in"]
-        records_out = last["out"] - window["out"]
+        span_in = last["in"] - first["in"]
+        span_out = last["out"] - first["out"]
         kept = None
-        if records_in > 0:
-            kept = round(100 * max(0, records_in - records_out) / records_in, 1)
+        if span_in > 0:
+            kept = round(100 * max(0, span_in - span_out) / span_in, 1)
+        window = ticks[max(0, len(ticks) - 1 - 30)]
+        records_in = last["in"] - window["in"]
         return {
-            "in_per_s": round((last["in"] - first["in"]) / span, 1),
-            "out_per_s": round((last["out"] - first["out"]) / span, 1),
+            "in_per_s": round(span_in / span, 1),
+            "out_per_s": round(span_out / span, 1),
             "in_bytes_per_s": round((last["in_bytes"] - first["in_bytes"]) / span),
             "out_bytes_per_s": round((last["out_bytes"] - first["out_bytes"]) / span),
             "kept_pct": kept,
@@ -217,7 +221,8 @@ def build_state(ledger: Ledger, models_dir: Path, env: dict[str, str]) -> dict:
             "share_pct": share[key] if timing["calls"] else None,
         }
     models["ollama"]["in_memory"] = ollama_in_memory(
-        env.get("OLLAMA_URL", "http://127.0.0.1:11434"), env.get("OLLAMA_MODEL", "")
+        env.get("OLLAMA_URL", "http://127.0.0.1:11434"),
+        models["ollama"].get("name") or env.get("OLLAMA_MODEL", ""),
     )
     state["models"] = models
     del state["timings"]
@@ -264,9 +269,9 @@ def make_handler(ledger: Ledger, models_dir: Path, env: dict[str, str]):
     return Handler
 
 
-def sampler(ledger: Ledger, stop: threading.Event) -> None:
+def ticker(ledger: Ledger, stop: threading.Event) -> None:
     while not stop.wait(1.0):
-        ledger.sample()
+        ledger.tick()
 
 
 def main() -> None:
@@ -279,7 +284,7 @@ def main() -> None:
     runtime.mkdir(parents=True, exist_ok=True)
     ledger = Ledger(runtime)
     stop = threading.Event()
-    threading.Thread(target=sampler, args=(ledger, stop), daemon=True).start()
+    threading.Thread(target=ticker, args=(ledger, stop), daemon=True).start()
     server = ThreadingHTTPServer(
         ("127.0.0.1", args.port), make_handler(ledger, models_dir, dict(os.environ))
     )

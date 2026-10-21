@@ -39,6 +39,13 @@ rollback:
 versions:
     ./scripts/democtl.sh versions
 
+versions-diff from="1" to="3":
+    ./scripts/democtl.sh versions-diff "{{from}}" "{{to}}"
+
+# Swap the Ollama model in the running pipeline (bench).
+ollama-model model="gemma3:270m":
+    ./scripts/democtl.sh ollama-model "{{model}}"
+
 # Stop llama-server under the running pipeline, then bring it back.
 break:
     ./scripts/democtl.sh break

@@ -125,11 +125,11 @@ json_only() {
 []'
 }
 
-# Start a background process, remember its pid and keep its log.
+# Start a background process in its own session, remember its pid and keep its log.
 start_bg() {
   local name="$1"; shift
   mkdir -p "$RT/pids" "$RT/logs"
-  (nohup "$@" >"$RT/logs/$name.log" 2>&1 & echo $! >"$RT/pids/$name.pid")
+  (nohup perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV' "$@" >"$RT/logs/$name.log" 2>&1 </dev/null & echo $! >"$RT/pids/$name.pid")
 }
 
 pid_of() { [[ -f "$RT/pids/$1.pid" ]] && cat "$RT/pids/$1.pid"; }
@@ -144,9 +144,9 @@ stop_bg() {
   local name="$1" pid
   pid="$(pid_of "$name")" || return 0
   if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-    kill "$pid" 2>/dev/null || true
+    kill "$pid" "-$pid" 2>/dev/null || true
     for _ in $(seq 1 40); do kill -0 "$pid" 2>/dev/null || break; sleep 0.25; done
-    if kill -0 "$pid" 2>/dev/null; then kill -9 "$pid" 2>/dev/null || true; sleep 0.5; fi
+    if kill -0 "$pid" 2>/dev/null; then kill -9 "$pid" "-$pid" 2>/dev/null || true; sleep 0.5; fi
     say "stopped $name"
   fi
   rm -f "$RT/pids/$name.pid"

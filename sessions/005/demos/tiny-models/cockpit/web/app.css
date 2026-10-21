@@ -144,6 +144,7 @@ th { font-weight: 500; color: var(--muted); font-size: 0.9rem; }
 .tail .c-model { width: 19%; }
 .tail tr { height: 2.15em; }
 
+.models { table-layout: fixed; }
 .models th[scope="row"] { color: var(--text); width: 24%; font-size: 0.95rem; }
 .models td { font-size: 0.95rem; }
 

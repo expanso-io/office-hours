@@ -22,7 +22,7 @@ CHECK='(() => {
     inner,
     fonts,
     plexLoaded: document.fonts.check("15px \"IBM Plex Sans\"") && document.fonts.check("13px \"IBM Plex Mono\""),
-    records: document.querySelectorAll("#rows tr").length,
+    records: document.querySelectorAll("#tail tr").length,
   });
 })()'
 for theme in light dark; do

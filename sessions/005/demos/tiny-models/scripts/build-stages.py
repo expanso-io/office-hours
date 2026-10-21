@@ -32,7 +32,11 @@ def build() -> dict[str, str]:
     stage3 = paste(stage2, (PIPELINES / "paste" / "change-2.yaml").read_text())
     assert stage3.count(SCHEMA_V3) == 1
     stage4 = stage3.replace(SCHEMA_V3, SCHEMA_V4)
-    return {"stage-2.cloud.yaml": stage2, "stage-3.cloud.yaml": stage3, "stage-4.cloud.yaml": stage4}
+    return {
+        "stage-2.cloud.yaml": stage2,
+        "stage-3.cloud.yaml": stage3,
+        "stage-4.cloud.yaml": stage4,
+    }
 
 
 if __name__ == "__main__":

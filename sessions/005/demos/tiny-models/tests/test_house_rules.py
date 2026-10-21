@@ -1,4 +1,4 @@
-"""House rules for everything in session 005: wording, engine, fonts."""
+"""House rules for everything in session 005: wording, engine, fonts, privacy."""
 
 import re
 from pathlib import Path
@@ -16,14 +16,15 @@ def session_files():
     for path in SESSION.rglob("*"):
         if any(part in SKIP_DIRS for part in path.parts):
             continue
-        wanted = path.suffix in TEXT_SUFFIXES or path.name == "justfile"
+        wanted = path.suffix in TEXT_SUFFIXES or path.name in ("justfile", ".env.example")
         if path.is_file() and wanted and path.resolve() != THIS_FILE:
             yield path
 
 
 def test_no_hedging_labels_on_screen_or_in_docs():
     banned = re.compile(
-        r"\b(simulated|simulation|illustrative|sample|samples|modeled|modelled)\b", re.IGNORECASE
+        r"\b(simulate|simulator|simulated|simulation|illustrative|sample|samples|modeled|modelled)\b",
+        re.IGNORECASE,
     )
     hits = [
         f"{path.relative_to(SESSION)}:{n}: {line.strip()}"
@@ -35,7 +36,7 @@ def test_no_hedging_labels_on_screen_or_in_docs():
 
 
 def test_expanso_edge_only():
-    banned = re.compile(r"\b(benthos|bento|warpstream)\b", re.IGNORECASE)
+    banned = re.compile(r"\b(benthos|bento|warpstream|bacalhau)\b", re.IGNORECASE)
     hits = [str(path) for path in session_files() if banned.search(path.read_text())]
     assert hits == []
 
@@ -61,3 +62,11 @@ def test_no_version_pins_in_clone_and_run_commands():
     readme = path.read_text()
     commands = "\n".join(re.findall(r"```(?:sh|bash)?\n(.*?)```", readme, re.DOTALL))
     assert re.search(r"\bv?\d+\.\d+\.\d+\b", commands) is None
+
+
+def test_loopback_only_and_no_private_paths():
+    for path in session_files():
+        text = path.read_text()
+        assert "0.0.0.0" not in text, path
+        assert "/Users/" not in text, path
+        assert "/home/" not in text, path

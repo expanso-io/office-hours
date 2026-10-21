@@ -19,7 +19,14 @@ def get(url: str, body: dict | None = None) -> dict:
         return json.load(response)
 
 
-def main(models_dir: Path, ollama_url: str, ollama_model: str, direct_url: str, direct_name: str, gguf: str):
+def main(
+    models_dir: Path,
+    ollama_url: str,
+    ollama_model: str,
+    direct_url: str,
+    direct_name: str,
+    gguf: str,
+):
     scorer = json.loads((models_dir / "scorer.json").read_text())
     manifest = {
         "python": {
@@ -45,14 +52,18 @@ def main(models_dir: Path, ollama_url: str, ollama_model: str, direct_url: str, 
     for model in get(f"{base}/models").get("data", []):
         meta = model.get("meta") or {}
         if model.get("id") == direct_name and meta:
-            direct["shape"] = f"{meta['n_params'] / 1e6:.1f}M parameters, {meta.get('ftype', 'GGUF')}"
+            direct["shape"] = (
+                f"{meta['n_params'] / 1e6:.1f}M parameters, {meta.get('ftype', 'GGUF')}"
+            )
     if Path(gguf).is_file() and direct_url.startswith("http://127.0.0.1"):
         direct["bytes"] = Path(gguf).stat().st_size
     manifest["direct"] = direct
 
     (models_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     for key, info in manifest.items():
-        print(f"{key:7} {info['name']:16} {info.get('bytes', 0):>12,} bytes  {info.get('shape', '')}")
+        print(
+            f"{key:7} {info['name']:16} {info.get('bytes', 0):>12,} bytes  {info.get('shape', '')}"
+        )
 
 
 if __name__ == "__main__":

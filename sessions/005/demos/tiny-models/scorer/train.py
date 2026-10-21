@@ -1,8 +1,8 @@
 """Fit the Python model: an IsolationForest over three pump readings.
 
 The forest learns what normal operation looks like from 2,000 readings drawn
-around the same operating ranges the pipeline's generator uses for a healthy
-pump. Anything far outside that envelope scores as an anomaly.
+around the same operating ranges that `feed.py` uses for a healthy pump.
+Anything far outside that envelope scores as an anomaly.
 
 Run by `just warm` (and by `just up` if the model is missing). Writes
 `.models/scorer.joblib` and `.models/scorer.json` beside this demo.
@@ -21,10 +21,9 @@ from sklearn.ensemble import IsolationForest
 FEATURES = ("temp_c", "vibration_mm_s", "current_a")
 
 # Centre and half-width of each reading on a healthy pump. These match the
-# routine branch of the generator in pipelines/*.yaml, which spreads readings
-# evenly across centre +/- half-width. Training draws from a bell curve whose
-# +/- two standard deviations cover that band, so the edges of the healthy
-# envelope are sparse and readings past them isolate quickly.
+# healthy branch of feed.py. Training draws from a bell curve whose +/- two
+# standard deviations cover that band, so the edges of the healthy envelope
+# are sparse and readings past them isolate quickly.
 HEALTHY = {
     "temp_c": (62.0, 3.0),
     "vibration_mm_s": (2.8, 0.6),

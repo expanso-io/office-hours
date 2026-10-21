@@ -74,8 +74,13 @@ preload_ollama() {
 }
 
 unload_ollama() {
-  curl -fsS -m 10 "$OLLAMA_URL/api/generate" -d "{\"model\":\"$OLLAMA_MODEL\",\"keep_alive\":0}" >/dev/null 2>&1 &&
-    say "Ollama unloaded $OLLAMA_MODEL" || true
+  local model seen=""
+  for model in "$OLLAMA_MODEL" "$(jq -r '.ollama.name // empty' "$MODELS/manifest.json" 2>/dev/null || true)"; do
+    [[ -n "$model" && " $seen " != *" $model "* ]] || continue
+    seen="$seen $model"
+    curl -fsS -m 10 "$OLLAMA_URL/api/generate" -d "{\"model\":\"$model\",\"keep_alive\":0}" >/dev/null 2>&1 &&
+      say "Ollama unloaded $model" || true
+  done
 }
 
 start_cockpit() {
@@ -168,6 +173,13 @@ deploy_file() {
   lane_cli job deploy "$file" --force
   wait_running || say "warning: job not reported running yet"
   write_job_json
+  mkdir -p "$RT/versions"
+  cp "$file" "$RT/versions/v$(jq -r .version "$RT/job.json").yaml"
+  if grep -q problem_reported "$file"; then
+    printf 'strainer\n' >"$RT/note-cue"
+  else
+    printf 'bearing\n' >"$RT/note-cue"
+  fi
   say "$JOB_NAME is at version $(jq -r .version "$RT/job.json")"
 }
 
@@ -290,13 +302,24 @@ cmd_deploy() {
 }
 
 cmd_rollback() {
-  local version
+  local version target
   version="$(job_version)"
   (( version > 1 )) || die "nothing to roll back to"
-  say "rolling $JOB_NAME back to the spec of version $((version - 1))"
-  lane_cli job rollback "$JOB_NAME" --to-version "$((version - 1))" --reason "office hours 005: rollback"
+  target="$((version - 1))"
+  say "rolling $JOB_NAME back to the spec of version $target"
+  if [[ -f "$RT/versions/v${target}.yaml" ]]; then
+    cp "$RT/versions/v${target}.yaml" "$LIVE_FILE"
+  else
+    cp "$(stage_file 3)" "$LIVE_FILE"
+  fi
+  if ! lane_cli job rollback "$JOB_NAME" --to-version "$target" --reason "office hours 005: rollback" --force 2>/dev/null; then
+    lane_cli job deploy "$LIVE_FILE" --force
+  fi
   wait_running || true
   write_job_json
+  mkdir -p "$RT/versions"
+  cp "$LIVE_FILE" "$RT/versions/v$(jq -r .version "$RT/job.json").yaml" 2>/dev/null || true
+  printf 'bearing\n' >"$RT/note-cue"
   say "$JOB_NAME is at version $(jq -r .version "$RT/job.json")"
 }
 
@@ -304,16 +327,37 @@ cmd_versions() {
   lane_cli job versions "$JOB_NAME"
 }
 
+cmd_versions_diff() {
+  local from="${1:-1}" to="${2:-3}"
+  if ! lane_cli job versions-diff "$JOB_NAME" --from "$from" --to "$to" 2>/dev/null; then
+    diff -u "$RT/versions/v${from}.yaml" "$RT/versions/v${to}.yaml" || true
+  fi
+}
+
+cmd_ollama_model() {
+  [[ -d "$RT" ]] || die "nothing is up; run just up or just up-offline first"
+  local model="${1:?model name, e.g. gemma3:270m}"
+  OLLAMA_MODEL="$model" warm_ollama
+  OLLAMA_MODEL="$model" preload_ollama
+  uv run --frozen --quiet python scripts/manifest.py "$MODELS" "$OLLAMA_URL" "$model" \
+    "$DIRECT_MODEL_URL" "$DIRECT_MODEL_NAME" "$DIRECT_GGUF"
+  [[ -f "$LIVE_FILE" ]] || cp "$(stage_file 3)" "$LIVE_FILE"
+  sed -i.bak -E "s|^([[:space:]]*model: ).*|\1$model|" "$LIVE_FILE" && rm -f "$LIVE_FILE.bak"
+  deploy_file "$LIVE_FILE"
+}
+
 cmd_break() {
   direct_is_ours || die "the direct model is external; nothing local to stop"
   alive direct || die "llama-server is not running"
   stop_bg direct
+  printf 'bearing\n' >"$RT/note-cue"
   say "llama-server is down; the pipeline keeps running"
 }
 
 cmd_heal() {
   alive direct && { say "llama-server is already running"; return 0; }
   start_direct
+  printf 'bearing\n' >"$RT/note-cue"
 }
 
 cmd_rate() {
@@ -376,11 +420,13 @@ case "${1:-}" in
   deploy) cmd_deploy ;;
   rollback) cmd_rollback ;;
   versions) cmd_versions ;;
+  versions-diff) cmd_versions_diff "${2:-1}" "${3:-3}" ;;
+  ollama-model) cmd_ollama_model "${2:-}" ;;
   break) cmd_break ;;
   heal) cmd_heal ;;
   rate) cmd_rate "${2:-}" ;;
   status) cmd_status ;;
   stop) cmd_stop ;;
   logs) tail -n 30 "$RT"/logs/*.log ;;
-  *) echo "usage: $0 {warm|validate|up cloud|local [stage]|stage N|deploy|rollback|versions|break|heal|rate N|status|stop|logs}" >&2; exit 2 ;;
+  *) echo "usage: $0 {warm|validate|up cloud|local [stage]|stage N|deploy|rollback|versions|versions-diff [from] [to]|ollama-model MODEL|break|heal|rate N|status|stop|logs}" >&2; exit 2 ;;
 esac
