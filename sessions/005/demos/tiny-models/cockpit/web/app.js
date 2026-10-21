@@ -1,5 +1,4 @@
-// Cockpit page: polls /api/state once a second and renders the latest record,
-// the recent records and the per-model numbers. Built with textContent only.
+// Cockpit page: polls /api/state once a second. Built with textContent only.
 
 const THEME_KEY = "oh5-theme";
 
@@ -7,14 +6,20 @@ const POLL_MS = 1000;
 
 const MODELS = ["python", "ollama", "direct"];
 
-const SEVERITIES = new Set(["low", "medium", "high"]);
-
 const els = {
   where: document.getElementById("where"),
-  latest: document.getElementById("latest"),
-  rows: document.getElementById("rows"),
-  models: document.getElementById("models"),
   theme: document.getElementById("theme"),
+  tail: document.getElementById("tail"),
+  models: document.getElementById("models"),
+  note: document.getElementById("note"),
+  alert: document.getElementById("alert"),
+  inRate: document.getElementById("in-rate"),
+  outRate: document.getElementById("out-rate"),
+  kept: document.getElementById("kept"),
+  inBytes: document.getElementById("in-bytes"),
+  outBytes: document.getElementById("out-bytes"),
+  degraded: document.getElementById("degraded"),
+  dead: document.getElementById("dead"),
 };
 
 function setTheme(theme) {
@@ -63,66 +68,88 @@ function bytes(value) {
   return `${(value / 1e3).toFixed(1)} kB`;
 }
 
-function readings(record) {
+function rate(value, unit) {
+  return Number.isFinite(value) ? `${value.toFixed(1)} ${unit}` : "–";
+}
+
+function byteRate(value) {
+  if (!Number.isFinite(value)) return "–";
+
+  return value >= 1000 ? `${(value / 1000).toFixed(1)} kB/s` : `${Math.round(value)} B/s`;
+}
+
+function clock(ts) {
+  return ts ? String(ts).slice(11, 23) : "";
+}
+
+function readingText(record) {
   return `${record.temp_c} °C · ${record.vibration_mm_s} mm/s · ${record.current_a} A`;
 }
 
-function answerText(key, answer) {
-  if (answer.error) return { text: "call failed", cls: "flag" };
+function answer(key, value) {
+  if (!value) return null;
 
-  if (answer.unparsed !== undefined) return { text: `off-format: ${answer.unparsed}`, cls: "off" };
+  if (value.error) return { text: "call failed", cls: "flag", ms: "" };
+
+  if (value.unparsed !== undefined) return { text: `off-format: ${value.unparsed}`, cls: "off", ms: ms(value.call_ms) };
 
   if (key === "python") {
-    return answer.anomaly
-      ? { text: `anomaly, score ${answer.score}`, cls: "flag" }
-      : { text: `normal, score ${answer.score}`, cls: "" };
+    const text = value.anomaly ? `anomaly ${value.score}` : `normal ${value.score}`;
+
+    return { text, cls: value.anomaly ? "flag" : "", ms: ms(value.call_ms) };
   }
 
   if (key === "ollama") {
-    const severity = answer.severity;
+    const symptom = value.symptom ? `, ${value.symptom}` : "";
 
-    if (!SEVERITIES.has(severity)) {
-      return { text: `off-format: ${JSON.stringify(answer)}`, cls: "off" };
-    }
-
-    return { text: `severity ${severity}`, cls: severity === "high" ? "flag" : "" };
+    return { text: `${value.part}${symptom}`, cls: "", ms: ms(value.call_ms) };
   }
 
-  return { text: `part: ${answer.part}`, cls: "" };
+  const problem = value.problem_reported === undefined ? "" : `, problem ${value.problem_reported}`;
+
+  return { text: `${value.part}${problem}`, cls: "", ms: ms(value.call_ms) };
 }
 
 function modelCell(key, record, label) {
   const td = el("td");
   td.dataset.label = label;
-  const answer = record[key];
+  let shown = answer(key, record[key]);
+  let fromNote = false;
 
-  if (!answer) {
-    td.append(el("span", "off", "not in this stage"));
+  if (!shown && record.last_note) {
+    shown = answer(key, record.last_note[key]);
+    fromNote = Boolean(shown);
+  }
+
+  if (!shown) {
+    td.append(el("span", "off", "–"));
 
     return td;
   }
 
-  const shown = answerText(key, answer);
-  const wrap = el("span");
-  wrap.append(el("span", shown.cls, shown.text), el("span", "ms", ms(answer.call_ms)));
-  td.append(wrap);
+  td.title = shown.text;
+  td.append(el("span", shown.cls, shown.text));
+
+  if (shown.ms) td.append(" ", el("span", "ms", shown.ms));
+
+  if (fromNote) td.append(" ", el("span", "from-note", "last note"));
 
   return td;
 }
 
-function recordRow(record) {
+function tailRow(record) {
   const tr = el("tr");
-  const idCell = el("td");
-  idCell.dataset.label = "Record";
-  idCell.append(el("span", "rid", record.id), el("span", "sub", record.asset));
-  const readCell = el("td", "mono", readings(record));
-  readCell.dataset.label = "Readings";
-  const noteCell = el("td", "", record.note);
-  noteCell.dataset.label = "Note";
+  const time = el("td", "num", clock(record.ts));
+  time.dataset.label = "Time";
+  const asset = el("td", "", record.asset);
+  asset.dataset.label = "Pump";
+  const what = record.kind === "note" ? el("td", "", record.text) : el("td", "num", readingText(record));
+  what.dataset.label = record.kind === "note" ? "Note" : "Reading";
+  what.title = what.textContent;
   tr.append(
-    idCell,
-    readCell,
-    noteCell,
+    time,
+    asset,
+    what,
     modelCell("python", record, "Python"),
     modelCell("ollama", record, "Ollama"),
     modelCell("direct", record, "Direct call"),
@@ -131,10 +158,10 @@ function recordRow(record) {
   return tr;
 }
 
-function skeletonRows() {
+function skeletonRows(count) {
   const rows = [];
 
-  for (let i = 0; i < 3; i += 1) {
+  for (let i = 0; i < count; i += 1) {
     const tr = el("tr");
 
     for (let c = 0; c < 6; c += 1) {
@@ -149,31 +176,6 @@ function skeletonRows() {
   return rows;
 }
 
-function answersText(answers) {
-  const parts = Object.entries(answers || {}).map(([label, count]) => `${label} ${count}`);
-
-  return parts.length ? parts.join(", ") : "none yet";
-}
-
-function callsText(model) {
-  const failed = model.failed ? `, ${model.failed} failed or off-format` : "";
-
-  return `${model.calls ?? 0}${failed}`;
-}
-
-const MODEL_ROWS = [
-  ["Model", (m) => m.name || "not reported", ""],
-  ["Called through", (m) => m.runtime || "", ""],
-  ["Size on disk", (m) => bytes(m.bytes), "num"],
-  ["Shape", (m) => m.shape || "not reported", ""],
-  ["Calls this run", callsText, "num"],
-  ["First call", (m) => ms(m.first_ms) || "none yet", "num"],
-  ["Median call", (m) => ms(m.p50_ms) || "none yet", "num"],
-  ["95th percentile", (m) => ms(m.p95_ms) || "none yet", "num"],
-  ["Slowest call", (m) => ms(m.max_ms) || "none yet", "num"],
-  ["Answers", (m) => answersText(m.answers), ""],
-];
-
 function rowHeader(label) {
   const th = el("th", "", label);
   th.setAttribute("scope", "row");
@@ -181,53 +183,77 @@ function rowHeader(label) {
   return th;
 }
 
-function memoryText(models) {
-  const until = models.ollama?.in_memory_until;
-
-  return until ? `until ${until.slice(11, 19)}` : "not loaded";
+function share(value) {
+  return Number.isFinite(value) ? `${value.toFixed(1)}%` : "–";
 }
+
+function memory(model, key) {
+  if (key === "python") return "inside the pipeline's process";
+
+  if (key === "direct") return "while llama-server runs";
+
+  if (model.in_memory === null || model.in_memory === undefined) return "Ollama not answering";
+
+  return model.in_memory ? "loaded" : "not loaded";
+}
+
+const MODEL_ROWS = [
+  ["Model", (m) => m.name || "not reported", ""],
+  ["Wired with", (m) => (m.wiring ? `${m.wiring} processor` : ""), "num"],
+  ["Size on disk", (m) => bytes(m.bytes), "num"],
+  ["Shape", (m) => m.shape || "not reported", ""],
+  ["Median call", (m) => ms(m.p50_ms) || "–", "num"],
+  ["95th percentile", (m) => ms(m.p95_ms) || "–", "num"],
+  ["Calls, last 60 s", (m) => String(m.calls ?? 0), "num"],
+  ["Share of records in", (m) => share(m.share_pct), "num"],
+  ["In memory", memory, ""],
+];
 
 function renderModels(models) {
   const rows = MODEL_ROWS.map(([label, value, cls]) => {
     const tr = el("tr");
     tr.append(rowHeader(label));
 
-    for (const key of MODELS) tr.append(el("td", cls, value(models[key] || {})));
+    for (const key of MODELS) tr.append(el("td", cls, value(models[key] || {}, key)));
 
     return tr;
   });
 
-  const memory = el("tr");
-  memory.append(
-    rowHeader("In memory"),
-    el("td", "", "for the life of the pipeline"),
-    el("td", "", memoryText(models)),
-    el("td", "", "while llama-server runs"),
-  );
-  rows.push(memory);
   els.models.replaceChildren(...rows);
 }
 
-function laneText(lane) {
-  if (lane === "cloud") return "deployed through Expanso Cloud";
+function laneText(job) {
+  const where = job.lane === "cloud" ? "Expanso Cloud" : job.lane === "local" ? "local-mode node, offline" : "not running";
+  const version = job.version ? ` · version ${job.version}` : "";
 
-  if (lane === "local") return "local-mode Expanso Edge node, offline";
+  return `${where} · ${job.name || "office-hours-005-models"}${version}`;
+}
 
-  return "not running";
+function showJson(target, record, waitingText) {
+  if (record) {
+    target.textContent = JSON.stringify(record, null, 2);
+
+    return;
+  }
+
+  target.replaceChildren(el("span", "waiting", waitingText));
 }
 
 function render(state) {
-  els.where.textContent = `${laneText(state.lane)} · stage ${state.stage || "none"} · ${state.records_total} records this run`;
-
-  if (state.records.length) {
-    els.latest.textContent = JSON.stringify(state.records[0], null, 2);
-    els.rows.replaceChildren(...state.records.map(recordRow));
-  } else {
-    els.latest.replaceChildren(el("span", "waiting", "Waiting for the first record from the pipeline."));
-    els.rows.replaceChildren(...skeletonRows());
-  }
-
+  const rates = state.rates || {};
+  els.where.textContent = laneText(state.job || {});
+  els.inRate.textContent = rate(rates.in_per_s, "/s");
+  els.outRate.textContent = rate(rates.out_per_s, "/s");
+  els.kept.textContent = Number.isFinite(rates.kept_pct) ? `${rates.kept_pct.toFixed(1)}%` : "–";
+  els.inBytes.textContent = byteRate(rates.in_bytes_per_s);
+  els.outBytes.textContent = byteRate(rates.out_bytes_per_s);
+  els.degraded.textContent = String(state.degraded ?? 0);
+  els.dead.textContent = String(state.dead_letters ?? 0);
+  const tail = state.tail || [];
+  els.tail.replaceChildren(...(tail.length ? tail.map(tailRow) : skeletonRows(4)));
   renderModels(state.models || {});
+  showJson(els.note, state.latest_note, "No note has left the node yet.");
+  showJson(els.alert, state.latest_alert, "No anomaly has left the node yet. Readings carry a score after change 1.");
 }
 
 async function poll() {
@@ -248,6 +274,6 @@ setTheme(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
 
 els.theme.addEventListener("click", toggleTheme);
 
-els.rows.replaceChildren(...skeletonRows());
+els.tail.replaceChildren(...skeletonRows(4));
 
 poll();

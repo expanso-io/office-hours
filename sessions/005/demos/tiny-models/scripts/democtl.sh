@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
-# Lifecycle for the tiny-models demo: warm, validate, up, stage, status, stop.
-# Run through the justfile; every command works from any directory.
+# Lifecycle for the tiny-models demo. Run through the justfile; every command
+# works from any directory.
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 cd "$ROOT"
 
 stage_file() {
-  local file
-  file="$(ls pipelines/stage-"$1"-*.yaml 2>/dev/null | head -1)"
-  [[ -n "$file" ]] || die "no pipeline for stage $1 (expected pipelines/stage-$1-*.yaml)"
+  local file="pipelines/stage-$1.cloud.yaml"
+  [[ -f "$file" ]] || die "no pipeline for stage $1 (expected $file)"
   printf '%s\n' "$file"
 }
 
@@ -16,60 +15,81 @@ stage_file() {
 
 warm_python() {
   uv sync --frozen --quiet
-  uv run --frozen --quiet python scorer/train.py
+  uv run --frozen --quiet python scorer/train.py | sed "s#$ROOT/##"
 }
 
 warm_direct() {
   direct_is_ours || { say "direct model: using $DIRECT_MODEL_URL, nothing to download"; return; }
   mkdir -p "$MODELS"
   if [[ -s "$DIRECT_GGUF" ]]; then
-    say "direct model: $(basename "$DIRECT_GGUF") already present"
+    say "direct model: $(rel "$DIRECT_GGUF") already here"
   else
     say "direct model: downloading $(basename "$DIRECT_GGUF")"
     curl -fL --progress-bar -o "$DIRECT_GGUF.part" "$DIRECT_GGUF_URL"
     mv "$DIRECT_GGUF.part" "$DIRECT_GGUF"
   fi
-  say "direct model: $(wc -c <"$DIRECT_GGUF" | tr -d ' ') bytes"
 }
 
+ollama_up() { curl -fsS -m 3 "$OLLAMA_URL/api/version" >/dev/null 2>&1; }
+
 warm_ollama() {
-  ollama_is_ours || { say "ollama: using $OLLAMA_URL, pull $OLLAMA_MODEL there yourself"; return; }
-  start_ollama
-  OLLAMA_HOST="127.0.0.1:${OLLAMA_PORT}" ollama pull "$OLLAMA_MODEL"
-  stop_bg ollama
+  ollama_up || die "Ollama is not answering at $OLLAMA_URL; start it (brew services start ollama, or the Ollama app)"
+  OLLAMA_HOST="${OLLAMA_URL#http://}" ollama pull "$OLLAMA_MODEL"
+}
+
+cmd_warm() {
+  need uv curl jq ollama
+  direct_is_ours && need llama-server
+  warm_python
+  warm_direct
+  warm_ollama
+  mkdir -p "$RT"
+  start_direct
+  uv run --frozen --quiet python scripts/manifest.py "$MODELS" "$OLLAMA_URL" "$OLLAMA_MODEL" \
+    "$DIRECT_MODEL_URL" "$DIRECT_MODEL_NAME" "$DIRECT_GGUF"
+  stop_bg direct
+  rm -rf "$RT"
+  say "warm: models trained, downloaded and pulled; manifest written"
 }
 
 # ---------------------------------------------------------------- servers
 
-start_ollama() {
-  ollama_is_ours || return 0
-  port_open "$OLLAMA_PORT" && die "port $OLLAMA_PORT is already in use"
-  # One request at a time, one model, a 2k context (the notes are one line),
-  # and NOPRUNE because this server shares the model store with any other
-  # Ollama on the machine and must not tidy away blobs that one is fetching.
-  start_bg ollama env OLLAMA_HOST="127.0.0.1:${OLLAMA_PORT}" \
-    OLLAMA_KEEP_ALIVE="${OLLAMA_KEEP_ALIVE_SECONDS}s" OLLAMA_NUM_PARALLEL=1 \
-    OLLAMA_MAX_LOADED_MODELS=1 OLLAMA_CONTEXT_LENGTH=2048 OLLAMA_NOPRUNE=1 ollama serve
-  wait_for_url "$OLLAMA_URL/api/version" || { cat "$RT/logs/ollama.log" >&2; die "ollama did not start"; }
-}
-
 start_direct() {
   direct_is_ours || return 0
-  [[ -s "$DIRECT_GGUF" ]] || die "$DIRECT_GGUF missing; run just warm"
+  [[ -s "$DIRECT_GGUF" ]] || die "$(rel "$DIRECT_GGUF") missing; run just warm"
   port_open "$DIRECT_PORT" && die "port $DIRECT_PORT is already in use"
   start_bg direct llama-server -m "$DIRECT_GGUF" --alias "$DIRECT_MODEL_NAME" \
     --host 127.0.0.1 --port "$DIRECT_PORT" -c 2048 --parallel 1 --no-webui
-  wait_for_url "http://127.0.0.1:${DIRECT_PORT}/health" 240 || { tail -20 "$RT/logs/direct.log" >&2; die "llama-server did not start"; }
+  wait_for_url "http://127.0.0.1:${DIRECT_PORT}/health" 240 || {
+    tail -5 "$RT/logs/direct.log" >&2; die "llama-server did not start"; }
+  say "llama-server serving $DIRECT_MODEL_NAME on 127.0.0.1:$DIRECT_PORT"
+}
+
+preload_ollama() {
+  ollama_up || die "Ollama is not answering at $OLLAMA_URL"
+  curl -fsS -m 60 "$OLLAMA_URL/api/generate" \
+    -d "{\"model\":\"$OLLAMA_MODEL\",\"keep_alive\":\"$OLLAMA_PRELOAD_KEEP_ALIVE\"}" >/dev/null ||
+    die "Ollama could not load $OLLAMA_MODEL; run just warm"
+  say "Ollama has $OLLAMA_MODEL loaded"
+}
+
+unload_ollama() {
+  curl -fsS -m 10 "$OLLAMA_URL/api/generate" -d "{\"model\":\"$OLLAMA_MODEL\",\"keep_alive\":0}" >/dev/null 2>&1 &&
+    say "Ollama unloaded $OLLAMA_MODEL" || true
 }
 
 start_cockpit() {
   port_open "$COCKPIT_PORT" && die "port $COCKPIT_PORT is already in use"
   start_bg cockpit env BROWSER=none OH5_RUNTIME="$RT" OH5_MODELS="$MODELS" \
     OLLAMA_URL="$OLLAMA_URL" OLLAMA_MODEL="$OLLAMA_MODEL" \
-    DIRECT_MODEL_URL="$DIRECT_MODEL_URL" DIRECT_MODEL_NAME="$DIRECT_MODEL_NAME" \
-    DIRECT_GGUF="$DIRECT_GGUF" \
     uv run --frozen --quiet python cockpit/server.py --port "$COCKPIT_PORT"
-  wait_for_url "http://127.0.0.1:${COCKPIT_PORT}/api/health" || { cat "$RT/logs/cockpit.log" >&2; die "cockpit did not start"; }
+  wait_for_url "http://127.0.0.1:${COCKPIT_PORT}/api/health" || {
+    tail -5 "$RT/logs/cockpit.log" >&2; die "cockpit did not start"; }
+}
+
+start_feed() {
+  start_bg feed env OH5_RUNTIME="$RT" uv run --frozen --quiet python feed.py \
+    --url "http://127.0.0.1:${INGEST_PORT}/ingest"
 }
 
 start_edge_local() {
@@ -78,55 +98,89 @@ start_edge_local() {
   edge_env_init
   start_bg edge env "${EDGE_ENV[@]}" expanso-edge run --local --no-watch \
     --data-dir "$RT/edge-local" --api-listen "127.0.0.1:${LOCAL_EDGE_PORT}"
-  for _ in $(seq 1 80); do port_open "$LOCAL_EDGE_PORT" && return 0; sleep 0.25; done
-  tail -20 "$RT/logs/edge.log" >&2; die "local edge node did not start"
+  for _ in $(seq 1 80); do port_open "$LOCAL_EDGE_PORT" && { say "local-mode edge node up"; return 0; }; sleep 0.25; done
+  die "local edge node did not start; see .runtime/logs/edge.log"
 }
 
 start_edge_cloud() {
   local data_dir
   data_dir="$(edge_data_dir)" || die "no node data; set OH5_EDGE_DATA_DIR or see the session README"
-  [[ -d "$data_dir/config.d" ]] || die "$data_dir is not an enrolled node (see the top-level README, step 3)"
+  [[ -d "$data_dir/config.d" ]] || die "no enrolled node found next to the .env (top-level README, setup step 3)"
   if pgrep -f -- "--data-dir $data_dir" >/dev/null; then
-    die "an expanso-edge process is already using $data_dir; stop it, just up starts the node itself"
+    die "an expanso-edge process is already using the office-hours node; stop it, just up starts the node itself"
   fi
   port_open "$CLOUD_EDGE_PORT" && die "port $CLOUD_EDGE_PORT is already in use"
   edge_env_init
   start_bg edge env "${EDGE_ENV[@]}" expanso-edge run --no-watch \
     --data-dir "$data_dir" --api-listen "127.0.0.1:${CLOUD_EDGE_PORT}"
   say "waiting for Expanso Cloud to see the office-hours node"
-  for _ in $(seq 1 60); do
-    if cloud_cli node list --label role=office-hours --format json 2>/dev/null | json_only |
-      jq -e 'any(.[]; (.status.connection_state // .status.connection // "") == "connected")' >/dev/null; then
-      say "node connected"
-      return 0
-    fi
-    alive edge || { tail -20 "$RT/logs/edge.log" >&2; die "edge node exited"; }
+  for _ in $(seq 1 90); do
+    if [[ "$(node_state)" == connected ]]; then say "node connected"; return 0; fi
+    alive edge || die "edge node exited; see .runtime/logs/edge.log"
     sleep 1
   done
   die "the office-hours node did not show as connected in Expanso Cloud"
 }
 
+node_state() {
+  cloud_cli node list --label role=office-hours --format json 2>/dev/null | json_only |
+    jq -r 'if any(.[]; (.status.connection_state // "") == "connected") then "connected"
+           elif length == 0 then "absent" else "disconnected" end'
+}
+
 # ---------------------------------------------------------------- jobs
 
-deploy_stage() {
-  local stage="$1" file
-  file="$(stage_file "$stage")"
-  say "deploying $file to $(lane)"
-  # --force makes a new revision even when the file is unchanged, so every
-  # deploy starts a fresh, capped run.
-  lane_cli job deploy "$file" --force
-  printf '%s\n' "$stage" >"$RT/stage"
-}
-
 job_record() {
-  lane_cli job list --format json | json_only | jq -c --arg n "$JOB_NAME" '[.[] | select(.spec.name == $n)] | .[0] // empty'
+  lane_cli job list --format json | json_only |
+    jq -c --arg n "$JOB_NAME" '[.[] | select(.spec.name == $n)] | .[0] // empty'
 }
 
-job_state() {
+job_version() {
   local job
   job="$(job_record)"
-  [[ -n "$job" ]] || { echo none; return; }
-  jq -r '.status.state.state_type // "unknown"' <<<"$job"
+  [[ -n "$job" ]] || { echo 0; return; }
+  jq -r '.version // .job_version // .status.version // 0' <<<"$job"
+}
+
+write_job_json() {
+  local job
+  job="$(job_record)"
+  jq -n --arg name "$JOB_NAME" --arg lane "$(lane)" --argjson job "${job:-null}" \
+    '{name: $name, lane: $lane, version: ($job.version // $job.job_version // $job.status.version // null),
+      state: ($job.status.state.state_type // null)}' >"$RT/job.json"
+}
+
+wait_running() {
+  for _ in $(seq 1 60); do
+    if [[ "$(jq -r '.status.state.state_type // ""' <<<"$(job_record)")" == running ]]; then return 0; fi
+    sleep 1
+  done
+  return 1
+}
+
+deploy_file() {
+  local file="$1"
+  expanso-edge validate "$file" >/dev/null || {
+    expanso-edge validate "$file" | sed "s#$ROOT/##" >&2
+    die "$(rel "$file") does not validate; fix the paste or use just stage N"
+  }
+  say "deploying $(rel "$file") to $(lane)"
+  lane_cli job deploy "$file" --force
+  wait_running || say "warning: job not reported running yet"
+  write_job_json
+  say "$JOB_NAME is at version $(jq -r .version "$RT/job.json")"
+}
+
+# A fresh job for each session, so Cloud's version history starts at 1.
+fresh_job() {
+  local job id
+  job="$(job_record)"
+  [[ -n "$job" ]] || return 0
+  id="$(jq -r .id <<<"$job")"
+  say "removing the previous $JOB_NAME job so this run starts at version 1"
+  lane_cli job stop "$id" --force >/dev/null 2>&1 || true
+  for _ in $(seq 1 30); do [[ "$(active_executions)" == 0 ]] && break; sleep 1; done
+  lane_cli job delete "$id" --yes --reason "office hours 005: fresh run" >/dev/null
 }
 
 active_executions() {
@@ -139,29 +193,49 @@ active_executions() {
       ["completed", "failed", "lost", "stopped", "cancelled"] | index($s)) == null)] | length'
 }
 
-wait_first_record() {
-  for _ in $(seq 1 120); do
-    [[ -s "$RT/enriched.jsonl" ]] && { say "first record written"; return 0; }
-    sleep 0.5
-  done
-  tail -30 "$RT/logs/edge.log" >&2
-  die "no record reached $RT/enriched.jsonl within 60 s"
+stop_job() {
+  local job id
+  case "$(lane)" in
+    cloud)
+      job="$(job_record)"
+      [[ -n "$job" ]] || { say "Cloud: no $JOB_NAME job"; return 0; }
+      id="$(jq -r .id <<<"$job")"
+      if [[ "$(jq -r '.status.state.state_type // ""' <<<"$job")" != stopped ]]; then
+        cloud_cli job stop "$id" --force >/dev/null || true
+      fi
+      for _ in $(seq 1 60); do
+        if [[ "$(active_executions)" == 0 ]]; then say "Cloud: $JOB_NAME stopped, no active executions"; return 0; fi
+        sleep 1
+      done
+      echo "Cloud: $JOB_NAME still has an active execution" >&2
+      return 1
+      ;;
+    local)
+      if alive edge; then local_cli job stop "$JOB_NAME" --force >/dev/null 2>&1 || true; fi
+      ;;
+  esac
+  return 0
 }
 
 # ---------------------------------------------------------------- preflight
 
 preflight_common() {
   need uv jq curl expanso-edge expanso-cli
-  ollama_is_ours && need ollama
   direct_is_ours && need llama-server
   [[ -s "$SCORER_MODEL" ]] || warm_python
-  if direct_is_ours && [[ ! -s "$DIRECT_GGUF" ]]; then die "$DIRECT_GGUF missing; run just warm"; fi
+  [[ -s "$MODELS/manifest.json" ]] || die "no model manifest; run just warm"
+  if direct_is_ours && [[ ! -s "$DIRECT_GGUF" ]]; then die "$(rel "$DIRECT_GGUF") missing; run just warm"; fi
+  local port
+  for port in "$COCKPIT_PORT" "$INGEST_PORT" "$DIRECT_PORT"; do
+    port_open "$port" && die "port $port is in use; run just down first"
+  done
+  return 0
 }
 
 preflight_cloud() {
   local env_file unscoped
   env_file="$(find_env_file)" || die "no .env found; set OH5_ENV_FILE or put one at the repository root"
-  [[ "$(stat -f '%Lp' "$env_file" 2>/dev/null || stat -c '%a' "$env_file")" == 600 ]] || die "$env_file must be mode 600"
+  [[ "$(stat -f '%Lp' "$env_file" 2>/dev/null || stat -c '%a' "$env_file")" == 600 ]] || die "the .env must be mode 600"
   cloud_cli status >/dev/null || die "Expanso Cloud did not answer"
   # A running job with an empty selector would land on this node too.
   unscoped="$(cloud_cli job list --format json | json_only |
@@ -172,144 +246,141 @@ preflight_cloud() {
 # ---------------------------------------------------------------- commands
 
 cmd_up() {
-  local mode="$1" stage="${2:-3}"
+  local mode="$1" stage="${2:-1}"
   [[ "$mode" == cloud || "$mode" == local ]] || die "mode must be cloud or local"
   stage_file "$stage" >/dev/null
+  if [[ -d "$RT" ]]; then cmd_stop; fi
   preflight_common
   [[ "$mode" == cloud ]] && preflight_cloud
-  if [[ -d "$RT" ]]; then cmd_stop; fi
   mkdir -p "$RT"; chmod 700 "$RT"
   printf '%s\n' "$mode" >"$RT/lane"
   # die() exits rather than returning, so clean up from an EXIT trap.
   trap 'echo "start failed, stopping what was started" >&2; cmd_stop || true' EXIT
-  start_ollama
+  preload_ollama
   start_direct
   start_cockpit
   if [[ "$mode" == cloud ]]; then start_edge_cloud; else start_edge_local; fi
-  deploy_stage "$stage"
-  wait_first_record
-  trap - EXIT
-  say "Tiny models cockpit: http://127.0.0.1:${COCKPIT_PORT}  (lane: $mode, stage $stage)"
+  [[ "$mode" == cloud ]] && fresh_job
+  cp "$(stage_file "$stage")" "$LIVE_FILE"
+  deploy_file "$LIVE_FILE"
+  start_feed
+  say "waiting for the first record to leave the node"
+  for _ in $(seq 1 60); do
+    if [[ "$(curl -fsS "http://127.0.0.1:${COCKPIT_PORT}/api/state" | jq .records_out)" -gt 0 ]]; then
+      trap - EXIT
+      say "cockpit: http://127.0.0.1:${COCKPIT_PORT}"
+      say "edit live.cloud.yaml and run just deploy, or run just stage N"
+      return 0
+    fi
+    sleep 1
+  done
+  die "no record reached the cockpit within 60 s; see .runtime/logs"
 }
 
 cmd_stage() {
   [[ -d "$RT" ]] || die "nothing is up; run just up or just up-offline first"
-  deploy_stage "${1:?stage number}"
+  cp "$(stage_file "${1:?stage number}")" "$LIVE_FILE"
+  deploy_file "$LIVE_FILE"
+}
+
+cmd_deploy() {
+  [[ -d "$RT" ]] || die "nothing is up; run just up or just up-offline first"
+  [[ -f "$LIVE_FILE" ]] || die "live.cloud.yaml missing; run just stage N"
+  deploy_file "$LIVE_FILE"
+}
+
+cmd_rollback() {
+  local version
+  version="$(job_version)"
+  (( version > 1 )) || die "nothing to roll back to"
+  say "rolling $JOB_NAME back to the spec of version $((version - 1))"
+  lane_cli job rollback "$JOB_NAME" --to-version "$((version - 1))" --reason "office hours 005: rollback"
+  wait_running || true
+  write_job_json
+  say "$JOB_NAME is at version $(jq -r .version "$RT/job.json")"
+}
+
+cmd_versions() {
+  lane_cli job versions "$JOB_NAME"
+}
+
+cmd_break() {
+  direct_is_ours || die "the direct model is external; nothing local to stop"
+  alive direct || die "llama-server is not running"
+  stop_bg direct
+  say "llama-server is down; the pipeline keeps running"
+}
+
+cmd_heal() {
+  alive direct && { say "llama-server is already running"; return 0; }
+  start_direct
+}
+
+cmd_rate() {
+  [[ -d "$RT" ]] || die "nothing is up"
+  [[ "${1:-}" =~ ^[0-9]+$ ]] || die "usage: just rate READINGS_PER_SECOND"
+  printf '%s\n' "$1" >"$RT/feed-rate"
+  say "feed set to $1 readings per second"
 }
 
 cmd_status() {
   if [[ ! -d "$RT" ]]; then say "down"; return 0; fi
-  say "lane: $(lane)   stage: $(cat "$RT/stage" 2>/dev/null || echo none)"
+  say "lane: $(lane)"
   local name
-  for name in ollama direct cockpit edge; do
-    if alive "$name"; then say "  $name: running (pid $(pid_of "$name"))"
+  for name in direct cockpit edge feed; do
+    if alive "$name"; then say "  $name: running"
     elif [[ -f "$RT/pids/$name.pid" ]]; then say "  $name: EXITED, see .runtime/logs/$name.log"
     fi
   done
-  ollama_is_ours || say "  ollama: external at $OLLAMA_URL"
-  direct_is_ours || say "  direct: external at $DIRECT_MODEL_URL"
-  if [[ "$(lane)" != none ]] && alive edge; then
-    say "  job $JOB_NAME: $(job_state), active executions: $(active_executions)"
+  if alive edge; then
+    write_job_json
+    say "  job $JOB_NAME: version $(jq -r .version "$RT/job.json"), $(jq -r .state "$RT/job.json")"
   fi
-  if [[ -s "$RT/enriched.jsonl" ]]; then
-    say "  records written: $(wc -l <"$RT/enriched.jsonl" | tr -d ' ')"
-    say "latest record:"
-    tail -1 "$RT/enriched.jsonl" | jq .
-  fi
-}
-
-stop_job() {
-  local job id
-  case "$(lane)" in
-    cloud)
-      job="$(job_record)"
-      [[ -n "$job" ]] || { say "Cloud: no $JOB_NAME job"; return 0; }
-      id="$(jq -r .id <<<"$job")"
-      if [[ "$(jq -r '.status.state.state_type // ""' <<<"$job")" != stopped ]]; then
-        cloud_cli job stop "$id" --force || true
-      fi
-      for _ in $(seq 1 60); do
-        if [[ "$(active_executions)" == 0 ]]; then say "Cloud: $JOB_NAME stopped, no active executions"; return 0; fi
-        sleep 1
-      done
-      die "Cloud: $JOB_NAME still has an active execution"
-      ;;
-    local)
-      if alive edge; then local_cli job stop "$JOB_NAME" --force >/dev/null 2>&1 || true; fi
-      ;;
-  esac
-  return 0
-}
-
-unload_ollama_model() {
-  ollama_is_ours || return 0
-  curl -fsS -m 5 "$OLLAMA_URL/api/generate" -d "{\"model\":\"$OLLAMA_MODEL\",\"keep_alive\":0}" >/dev/null 2>&1 || true
+  curl -fsS -m 3 "http://127.0.0.1:${COCKPIT_PORT}/api/state" | jq '{
+    records_in, records_out, kept_on_node_pct: .rates.kept_pct, in_per_s: .rates.in_per_s,
+    out_per_s: .rates.out_per_s, degraded, dead_letters,
+    ms_p50: (.models | map_values(.p50_ms)), ms_p95: (.models | map_values(.p95_ms))}' || true
 }
 
 cmd_stop() {
   [[ -d "$RT" ]] || { say "already down"; return 0; }
   local rc=0
+  stop_bg feed
   stop_job || rc=$?
   stop_bg edge
   stop_bg cockpit
   stop_bg direct
-  unload_ollama_model
-  stop_bg ollama
-  if (( rc == 0 )); then rm -rf "$RT"; fi
+  unload_ollama
+  if (( rc == 0 )); then rm -rf "$RT" "$LIVE_FILE"; fi
   return "$rc"
 }
 
 cmd_validate() {
   bash -n scripts/*.sh
   uv sync --frozen --quiet
-  uv run --frozen ruff check scorer cockpit tests
-  uv run --frozen ruff format --check scorer cockpit tests
+  uv run --frozen ruff check .
+  uv run --frozen ruff format --check .
   local file
-  for file in pipelines/*.yaml; do
-    expanso-edge validate "$file"
+  for file in pipelines/stage-*.cloud.yaml; do
+    expanso-edge validate "$file" | sed "s#$ROOT/##"
     expanso-cli job validate "$file" --offline >/dev/null && say "[OK] $file: job spec"
   done
   uv run --frozen pytest -q
 }
 
-cmd_test_live() {
-  trap '"$0" stop >/dev/null 2>&1 || true' EXIT
-  cmd_up local 3
-  say "waiting for six records with all three answers"
-  local n=0
-  for _ in $(seq 1 60); do
-    n="$(wc -l <"$RT/enriched.jsonl" | tr -d ' ')"
-    (( n >= 6 )) && break
-    sleep 1
-  done
-  (( n >= 6 )) || die "only $n records after 60 s"
-  head -6 "$RT/enriched.jsonl" | jq -se '
-    length == 6 and all(.[];
-      (.python.score | type) == "number" and (.python.anomaly | type) == "boolean" and
-      ((.ollama.severity // "") | IN("low", "medium", "high")) and
-      ((.direct.part // "") | length) > 0 and
-      (.python.call_ms | type) == "number" and (.ollama.call_ms | type) == "number" and
-      (.direct.call_ms | type) == "number")' >/dev/null || {
-    head -6 "$RT/enriched.jsonl" >&2; die "records are missing a model answer or a timing"; }
-  curl -fsS "http://127.0.0.1:${COCKPIT_PORT}/api/state" | jq -e '
-    (.records | length) >= 6 and
-    ([.models[] | .calls] | all(. >= 6)) and
-    (.models.python.bytes > 0) and (.models.ollama.bytes > 0) and (.models.direct.bytes > 0)' >/dev/null ||
-    die "cockpit state does not match the records"
-  trap - EXIT
-  cmd_stop
-  "$ROOT/scripts/teardown-audit.sh"
-  say "live offline proof passed: six records, three answers each, timings and sizes on the cockpit"
-}
-
 case "${1:-}" in
-  warm) need uv ollama llama-server curl; warm_python; warm_direct; warm_ollama; rm -rf "$RT" ;;
+  warm) cmd_warm ;;
   validate) cmd_validate ;;
-  up) cmd_up "${2:-cloud}" "${3:-3}" ;;
+  up) cmd_up "${2:-cloud}" "${3:-1}" ;;
   stage) cmd_stage "${2:-}" ;;
+  deploy) cmd_deploy ;;
+  rollback) cmd_rollback ;;
+  versions) cmd_versions ;;
+  break) cmd_break ;;
+  heal) cmd_heal ;;
+  rate) cmd_rate "${2:-}" ;;
   status) cmd_status ;;
   stop) cmd_stop ;;
-  test-live) cmd_test_live ;;
-  logs) tail -n 40 "$RT"/logs/*.log ;;
-  *) echo "usage: $0 {warm|validate|up cloud|local [stage]|stage N|status|stop|test-live|logs}" >&2; exit 2 ;;
+  logs) tail -n 30 "$RT"/logs/*.log ;;
+  *) echo "usage: $0 {warm|validate|up cloud|local [stage]|stage N|deploy|rollback|versions|break|heal|rate N|status|stop|logs}" >&2; exit 2 ;;
 esac

@@ -1,8 +1,9 @@
-"""Cockpit for the tiny-models demo.
+"""Cockpit for the tiny-models demo, on 127.0.0.1 only.
 
-Reads the records the Expanso Edge pipeline writes to .runtime/enriched.jsonl
-and serves them, with per-model timings and model sizes, to one page on
-127.0.0.1. Standard library only; started and stopped by scripts/democtl.sh.
+The pipeline's output POSTs every record that leaves the node to /api/sink.
+The feed writes what it put in to .runtime/feed.json. This server keeps both
+sides' counters, the model timings carried inside the records, and a short
+tail, and serves them to one page. Standard library only.
 """
 
 from __future__ import annotations
@@ -11,16 +12,19 @@ import argparse
 import json
 import math
 import os
+import threading
 import time
 import urllib.error
 import urllib.request
+from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 WEB = Path(__file__).resolve().parent / "web"
 MODEL_KEYS = ("python", "ollama", "direct")
-SEVERITIES = ("low", "medium", "high")
-RECENT = 30
+WINDOW_S = 60
+RATE_S = 10
+TAIL = 10
 CONTENT_TYPES = {
     ".html": "text/html; charset=utf-8",
     ".css": "text/css; charset=utf-8",
@@ -29,32 +33,8 @@ CONTENT_TYPES = {
 }
 
 
-def read_records(path: Path) -> list[dict]:
-    """Every complete JSON line in the output file, oldest first."""
-    if not path.exists():
-        return []
-    records = []
-    for line in path.read_text(errors="replace").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            records.append(json.loads(line))
-        except json.JSONDecodeError:
-            continue  # a line still being written
-    return records
-
-
-def current_run(records: list[dict]) -> list[dict]:
-    """Records since the last deploy. Each deploy restarts the counter at r-0001."""
-    start = 0
-    for index, record in enumerate(records):
-        if record.get("id") == "r-0001":
-            start = index
-    return records[start:]
-
-
 def percentile(values: list[float], pct: float) -> float | None:
+    """Nearest-rank percentile, rounded to 0.1."""
     if not values:
         return None
     ordered = sorted(values)
@@ -62,160 +42,189 @@ def percentile(values: list[float], pct: float) -> float | None:
     return round(ordered[rank], 1)
 
 
-def answer_label(key: str, answer: dict) -> str | None:
-    if "error" in answer or "unparsed" in answer:
-        return None
-    if key == "python":
-        return "anomaly" if answer.get("anomaly") else "normal"
-    if key == "ollama":
-        severity = answer.get("severity")
-        return severity if severity in SEVERITIES else None
-    part = answer.get("part")
-    return part if isinstance(part, str) and part else None
-
-
-def model_stats(run: list[dict]) -> dict:
-    stats = {}
+def is_degraded(record: dict) -> bool:
     for key in MODEL_KEYS:
-        answers = [r[key] for r in run if isinstance(r.get(key), dict)]
-        timings = [a["call_ms"] for a in answers if isinstance(a.get("call_ms"), (int, float))]
-        counts: dict[str, int] = {}
-        failed = 0
-        for answer in answers:
-            label = answer_label(key, answer)
-            if label is None:
-                failed += 1
-            else:
-                counts[label] = counts.get(label, 0) + 1
-        stats[key] = {
-            "calls": len(answers),
-            "failed": failed,
-            "first_ms": round(timings[0], 1) if timings else None,
-            "p50_ms": percentile(timings, 50),
-            "p95_ms": percentile(timings, 95),
-            "max_ms": round(max(timings), 1) if timings else None,
-            "total_ms": round(sum(timings), 1) if timings else None,
-            "answers": dict(sorted(counts.items(), key=lambda item: -item[1])),
-        }
-    return stats
+        answer = record.get(key)
+        if isinstance(answer, dict) and "error" in answer:
+            return True
+    return False
 
 
-def http_json(url: str, body: dict | None = None, timeout: float = 2.0):
-    data = json.dumps(body).encode() if body is not None else None
-    request = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        return json.load(response)
+class Ledger:
+    """Everything the cockpit knows, updated by the sink and a 1 s sampler."""
 
+    def __init__(self, runtime: Path, clock=time.time):
+        self.runtime = runtime
+        self.clock = clock
+        self.lock = threading.Lock()
+        self.out_records = 0
+        self.out_bytes = 0
+        self.degraded = 0
+        self.tail: deque[dict] = deque(maxlen=TAIL)
+        self.latest_note: dict | None = None
+        self.latest_alert: dict | None = None
+        self.timings: dict[str, deque] = {key: deque() for key in MODEL_KEYS}
+        self.samples: deque[dict] = deque(maxlen=WINDOW_S + 5)
 
-class ModelInfo:
-    """Size and shape of each model, read from the model itself, cached briefly."""
+    def sink(self, body: bytes) -> None:
+        record = json.loads(body)
+        now = self.clock()
+        with self.lock:
+            self.out_records += 1
+            self.out_bytes += len(body)
+            self.tail.appendleft(record)
+            if is_degraded(record):
+                self.degraded += 1
+            if record.get("kind") == "note":
+                self.latest_note = record
+            elif "python" in record:
+                self.latest_alert = record
+            for key in MODEL_KEYS:
+                # Only the record that carried the call counts it. An alert's
+                # copy of its last note's answers is not a second call.
+                answer = record.get(key)
+                if isinstance(answer, dict) and isinstance(answer.get("call_ms"), (int, float)):
+                    self.timings[key].append((now, answer["call_ms"]))
+            self.trim(now)
+        with (self.runtime / "out.jsonl").open("ab") as out:
+            out.write(body.rstrip(b"\n") + b"\n")
 
-    def __init__(self, env: dict[str, str]):
-        self.env = env
-        self.cached: dict = {}
-        self.fetched = 0.0
+    def trim(self, now: float) -> None:
+        for series in self.timings.values():
+            while series and series[0][0] < now - WINDOW_S:
+                series.popleft()
 
-    def get(self) -> dict:
-        if time.monotonic() - self.fetched > 15:
-            self.cached = {
-                "python": self.python(),
-                "ollama": self.ollama(),
-                "direct": self.direct(),
-            }
-            self.fetched = time.monotonic()
-        # Whether the Ollama model is in memory changes second to second.
-        self.cached["ollama"]["in_memory_until"] = self.ollama_loaded_until()
-        return self.cached
-
-    def python(self) -> dict:
-        info = {"name": "IsolationForest", "runtime": "scikit-learn, in a uv Python process"}
-        meta_path = Path(self.env.get("OH5_MODELS", "")) / "scorer.json"
+    def feed(self) -> dict:
         try:
-            meta = json.loads(meta_path.read_text())
+            return json.loads((self.runtime / "feed.json").read_text())
         except (OSError, json.JSONDecodeError):
-            return info
-        info.update(
-            bytes=meta.get("bytes"),
-            shape=f"{meta.get('trees')} trees, {meta.get('nodes'):,} nodes",
-        )
-        return info
+            return {}
 
-    def ollama(self) -> dict:
-        url = self.env.get("OLLAMA_URL", "")
-        name = self.env.get("OLLAMA_MODEL", "")
-        info = {"name": name, "runtime": f"Ollama at {url}"}
-        try:
-            tags = http_json(f"{url}/api/tags")
-            for model in tags.get("models", []):
-                if name in (model.get("name"), model.get("model")):
-                    info["bytes"] = model.get("size")
-                    details = model.get("details", {})
-                    info["shape"] = (
-                        f"{details.get('parameter_size', '?')} parameters, "
-                        f"{details.get('quantization_level', '?')}"
-                    )
-        except (OSError, urllib.error.URLError, ValueError):
-            info["unreachable"] = True
-        return info
+    def sample(self) -> None:
+        feed = self.feed()
+        with self.lock:
+            self.samples.append(
+                {
+                    "at": self.clock(),
+                    "in": feed.get("admitted", 0),
+                    "in_readings": feed.get("admitted_readings", 0),
+                    "in_notes": feed.get("admitted_notes", 0),
+                    "in_bytes": feed.get("bytes", 0),
+                    "out": self.out_records,
+                    "out_bytes": self.out_bytes,
+                }
+            )
+            self.trim(self.clock())
 
-    def ollama_loaded_until(self) -> str | None:
-        url = self.env.get("OLLAMA_URL", "")
-        name = self.env.get("OLLAMA_MODEL", "")
+    def rates(self) -> dict:
+        samples = list(self.samples)
+        if len(samples) < 2:
+            return {}
+        last = samples[-1]
+        first = samples[max(0, len(samples) - 1 - RATE_S)]
+        span = last["at"] - first["at"] or 1
+        window = samples[max(0, len(samples) - 1 - 30)]
+        records_in = last["in"] - window["in"]
+        records_out = last["out"] - window["out"]
+        kept = None
+        if records_in > 0:
+            kept = round(100 * max(0, records_in - records_out) / records_in, 1)
+        return {
+            "in_per_s": round((last["in"] - first["in"]) / span, 1),
+            "out_per_s": round((last["out"] - first["out"]) / span, 1),
+            "in_bytes_per_s": round((last["in_bytes"] - first["in_bytes"]) / span),
+            "out_bytes_per_s": round((last["out_bytes"] - first["out_bytes"]) / span),
+            "kept_pct": kept,
+            "notes_share_pct": round(100 * (last["in_notes"] - window["in_notes"]) / records_in, 1)
+            if records_in
+            else None,
+            "readings_share_pct": round(
+                100 * (last["in_readings"] - window["in_readings"]) / records_in, 1
+            )
+            if records_in
+            else None,
+        }
+
+    def dead_letters(self) -> int:
+        path = self.runtime / "dead-letter.jsonl"
         try:
-            loaded = http_json(f"{url}/api/ps")
-        except (OSError, urllib.error.URLError, ValueError):
-            return None
-        for model in loaded.get("models", []):
-            if name in (model.get("name"), model.get("model")):
-                return model.get("expires_at")
+            with path.open("rb") as handle:
+                return sum(1 for _ in handle)
+        except OSError:
+            return 0
+
+    def snapshot(self) -> dict:
+        feed = self.feed()
+        with self.lock:
+            timings = {key: [ms for _, ms in series] for key, series in self.timings.items()}
+            state = {
+                "records_in": feed.get("admitted", 0),
+                "bytes_in": feed.get("bytes", 0),
+                "refused_in": feed.get("refused", 0),
+                "feed_rate": feed.get("rate"),
+                "records_out": self.out_records,
+                "bytes_out": self.out_bytes,
+                "degraded": self.degraded,
+                "tail": list(self.tail),
+                "latest_note": self.latest_note,
+                "latest_alert": self.latest_alert,
+            }
+        state["rates"] = self.rates()
+        state["dead_letters"] = self.dead_letters()
+        state["timings"] = {
+            key: {
+                "calls": len(values),
+                "p50_ms": percentile(values, 50),
+                "p95_ms": percentile(values, 95),
+            }
+            for key, values in timings.items()
+        }
+        return state
+
+
+def read_json(path: Path) -> dict:
+    try:
+        return json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def ollama_in_memory(url: str, name: str) -> bool | None:
+    try:
+        with urllib.request.urlopen(f"{url}/api/ps", timeout=1) as response:
+            loaded = json.load(response)
+    except (OSError, urllib.error.URLError, ValueError):
         return None
-
-    def direct(self) -> dict:
-        url = self.env.get("DIRECT_MODEL_URL", "")
-        name = self.env.get("DIRECT_MODEL_NAME", "")
-        base = url.removesuffix("/chat/completions")
-        info = {"name": name, "runtime": f"OpenAI-compatible endpoint {url}"}
-        gguf = Path(self.env.get("DIRECT_GGUF", ""))
-        if gguf.is_file() and url.startswith("http://127.0.0.1"):
-            info["bytes"] = gguf.stat().st_size
-            info["file"] = gguf.name
-        try:
-            models = http_json(f"{base}/models")
-            for model in models.get("data", []):
-                meta = model.get("meta") or {}
-                if model.get("id") == name and meta:
-                    info["shape"] = (
-                        f"{meta['n_params'] / 1e6:.1f}M parameters, {meta.get('ftype', '')}".strip(
-                            ", "
-                        )
-                    )
-        except (OSError, urllib.error.URLError, ValueError, KeyError):
-            info["unreachable"] = True
-        return info
+    return any(name in (m.get("name"), m.get("model")) for m in loaded.get("models", []))
 
 
-def build_state(runtime: Path, models: ModelInfo) -> dict:
-    records = read_records(runtime / "enriched.jsonl")
-    run = current_run(records)
-
-    def read(name: str) -> str | None:
-        path = runtime / name
-        return path.read_text().strip() if path.exists() else None
-
-    stats = model_stats(run)
-    info = models.get()
-    merged = {key: {**info.get(key, {}), **stats[key]} for key in MODEL_KEYS}
-    return {
-        "lane": read("lane"),
-        "stage": read("stage"),
-        "records_total": len(run),
-        "records": list(reversed(run[-RECENT:])),
-        "models": merged,
-        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+def build_state(ledger: Ledger, models_dir: Path, env: dict[str, str]) -> dict:
+    state = ledger.snapshot()
+    state["job"] = read_json(ledger.runtime / "job.json")
+    manifest = read_json(models_dir / "manifest.json")
+    rates = state["rates"]
+    share = {
+        "python": rates.get("readings_share_pct"),
+        "ollama": rates.get("notes_share_pct"),
+        "direct": rates.get("notes_share_pct"),
     }
+    models = {}
+    for key in MODEL_KEYS:
+        timing = state["timings"][key]
+        models[key] = {
+            **manifest.get(key, {}),
+            **timing,
+            "share_pct": share[key] if timing["calls"] else None,
+        }
+    models["ollama"]["in_memory"] = ollama_in_memory(
+        env.get("OLLAMA_URL", "http://127.0.0.1:11434"), env.get("OLLAMA_MODEL", "")
+    )
+    state["models"] = models
+    del state["timings"]
+    return state
 
 
-def make_handler(runtime: Path, models: ModelInfo):
+def make_handler(ledger: Ledger, models_dir: Path, env: dict[str, str]):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format, *args):
             return
@@ -228,12 +237,22 @@ def make_handler(runtime: Path, models: ModelInfo):
             self.end_headers()
             self.wfile.write(body)
 
+        def do_POST(self):
+            if self.path.split("?", 1)[0] != "/api/sink":
+                return self.send(404, b"not found", "text/plain")
+            body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            try:
+                ledger.sink(body)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                return self.send(400, b"not json", "text/plain")
+            return self.send(200, b"ok", "text/plain")
+
         def do_GET(self):
             path = self.path.split("?", 1)[0]
             if path == "/api/health":
                 return self.send(200, b'{"ok": true}', "application/json")
             if path == "/api/state":
-                body = json.dumps(build_state(runtime, models)).encode()
+                body = json.dumps(build_state(ledger, models_dir, env)).encode()
                 return self.send(200, body, "application/json")
             name = "index.html" if path == "/" else path.lstrip("/")
             target = (WEB / name).resolve()
@@ -245,21 +264,32 @@ def make_handler(runtime: Path, models: ModelInfo):
     return Handler
 
 
+def sampler(ledger: Ledger, stop: threading.Event) -> None:
+    while not stop.wait(1.0):
+        ledger.sample()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=19500)
     args = parser.parse_args()
-    runtime = Path(
-        os.environ.get("OH5_RUNTIME", Path(__file__).resolve().parent.parent / ".runtime")
+    here = Path(__file__).resolve().parent.parent
+    runtime = Path(os.environ.get("OH5_RUNTIME", here / ".runtime"))
+    models_dir = Path(os.environ.get("OH5_MODELS", here / ".models"))
+    runtime.mkdir(parents=True, exist_ok=True)
+    ledger = Ledger(runtime)
+    stop = threading.Event()
+    threading.Thread(target=sampler, args=(ledger, stop), daemon=True).start()
+    server = ThreadingHTTPServer(
+        ("127.0.0.1", args.port), make_handler(ledger, models_dir, dict(os.environ))
     )
-    models = ModelInfo(dict(os.environ))
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(runtime, models))
     print(f"cockpit on http://127.0.0.1:{args.port}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
+        stop.set()
         server.server_close()
 
 

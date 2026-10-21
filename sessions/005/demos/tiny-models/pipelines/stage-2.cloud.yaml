@@ -1,0 +1,63 @@
+name: office-hours-005-models
+namespace: default
+type: pipeline
+description: Four pumps, three tiny models wired three ways, and the pipeline decides what leaves the node.
+labels:
+  session: "005"
+selector:
+  match_labels:
+    role: office-hours
+config:
+  # The feed POSTs one JSON record per request: a reading or an operator note.
+  input:
+    http_server:
+      address: 127.0.0.1:19501
+      path: /ingest
+      allowed_verbs: [POST]
+      timeout: 5s
+
+  # Each pump's latest note, kept in memory on the node. Change 2 uses it.
+  cache_resources:
+    - label: notes
+      memory:
+        default_ttl: 10m
+
+  pipeline:
+    # One record at a time: each model has exactly one call in flight.
+    threads: 1
+    processors:
+      # Change 1: the Python model scores every reading on this node, and only
+      # the anomalies leave. Notes pass straight through.
+      - switch:
+          - check: this.kind == "reading"
+            processors:
+              - mutation: meta t0 = timestamp_unix_nano()
+              - branch:
+                  request_map: root = this.without("kind", "asset", "ts")
+                  processors:
+                    - subprocess:
+                        name: ${OH5_UV:uv}
+                        args: [run, --project, "${OH5_DEMO_DIR}", --frozen, --quiet, python, "${OH5_DEMO_DIR}/scorer/score.py"]
+                  result_map: |
+                    root.python = this
+                    root.python.call_ms = ((timestamp_unix_nano() - metadata("t0")) / 1000).round() / 1000
+              - catch:
+                  - mutation: 'root.python = {"error": error()}'
+              - mapping: root = if this.python.anomaly == false { deleted() } else { this }
+      # Paste each change above this line.
+      - mutation: root.left_node_at = now()
+
+  # Everything that leaves the node goes to the cockpit. If the cockpit cannot
+  # take it, the record lands in a dead-letter file on the node instead.
+  output:
+    fallback:
+      - http_client:
+          url: ${OH5_SINK_URL:http://127.0.0.1:19500/api/sink}
+          verb: POST
+          timeout: 2s
+          retries: 2
+          retry_period: 200ms
+          max_in_flight: 1
+      - file:
+          path: ${OH5_DEAD_LETTER_FILE:./office-hours-005-dead-letter.jsonl}
+          codec: lines
