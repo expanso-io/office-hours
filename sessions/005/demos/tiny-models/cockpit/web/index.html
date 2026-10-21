@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Three tiny models, one stream</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/theme.js"></script>
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="title">
+      <h1>Three tiny models, one stream</h1>
+      <p id="where" class="where">Connecting to the cockpit server</p>
+    </div>
+    <button id="theme" class="theme" type="button" aria-pressed="false">Dark theme</button>
+  </header>
+
+  <main>
+    <section aria-labelledby="latest-h">
+      <h2 id="latest-h">Latest record, as the pipeline wrote it</h2>
+      <pre id="latest" class="json" aria-live="polite"><span class="skeleton-line"></span><span class="skeleton-line short"></span><span class="skeleton-line"></span></pre>
+    </section>
+
+    <section aria-labelledby="records-h">
+      <h2 id="records-h">Records</h2>
+      <p class="hint">Newest first. Each model's answer, and how long the pipeline waited for it.</p>
+      <table class="records">
+        <thead>
+          <tr>
+            <th scope="col">Record</th>
+            <th scope="col">Readings</th>
+            <th scope="col">Operator note</th>
+            <th scope="col">Python</th>
+            <th scope="col">Ollama</th>
+            <th scope="col">Direct call</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </section>
+
+    <section aria-labelledby="models-h">
+      <h2 id="models-h">The three models</h2>
+      <p class="hint">Sizes are the model files on this machine. Timings cover this run only, measured by the pipeline around each call.</p>
+      <table class="models">
+        <thead>
+          <tr>
+            <th scope="col"><span class="visually-hidden">Measure</span></th>
+            <th scope="col">Python</th>
+            <th scope="col">Ollama</th>
+            <th scope="col">Direct call</th>
+          </tr>
+        </thead>
+        <tbody id="models"></tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

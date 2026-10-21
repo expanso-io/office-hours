@@ -1,0 +1,52 @@
+# Pipeline Office Hours #00005: one stream of pump records, three tiny models.
+#
+# Plain `up` is the real thing: it starts this machine's office-hours node,
+# deploys the pipeline through Expanso Cloud and opens nothing but a cockpit
+# on 127.0.0.1:19500. `up-offline` runs the same pipeline on a local-mode
+# Expanso Edge node with no credentials.
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+# Train the Python model, download the GGUF, pull the Ollama model.
+warm:
+    ./scripts/democtl.sh warm
+
+# Lint, unit tests and offline pipeline validation. Starts nothing.
+validate:
+    ./scripts/democtl.sh validate
+
+# Deploy through Expanso Cloud. stage=1 Python only, 2 adds Ollama, 3 adds the direct call.
+up stage="3":
+    ./scripts/democtl.sh up cloud "{{stage}}"
+
+# Same pipeline on a local-mode Expanso Edge node; no Cloud, no credentials.
+up-offline stage="3":
+    ./scripts/democtl.sh up local "{{stage}}"
+
+# Roll the running job to another stage: a new revision of the same job.
+stage n:
+    ./scripts/democtl.sh stage "{{n}}"
+
+status:
+    ./scripts/democtl.sh status
+
+# Stop the job, the node, the model servers and the cockpit, then prove it.
+down:
+    ./scripts/democtl.sh stop
+    ./scripts/teardown-audit.sh
+
+stop:
+    ./scripts/democtl.sh stop
+
+teardown-check:
+    ./scripts/teardown-audit.sh
+
+test:
+    ./scripts/democtl.sh validate
+
+# Full offline run: up, six records with three answers each, down, teardown check.
+test-live:
+    ./scripts/democtl.sh test-live
+
+logs:
+    ./scripts/democtl.sh logs
