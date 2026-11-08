@@ -12,6 +12,7 @@ import argparse
 import json
 import math
 import os
+import subprocess
 import threading
 import time
 import urllib.error
@@ -21,6 +22,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 WEB = Path(__file__).resolve().parent / "web"
+JOB_NAME = "office-hours-005-models"
+JOB_POLL_S = 3
+LOCAL_EDGE_PORT = 19510
 MODEL_KEYS = ("python", "ollama", "direct")
 WINDOW_S = 60
 RATE_S = 10
@@ -66,8 +70,31 @@ class Ledger:
         self.tail: deque[dict] = deque(maxlen=TAIL)
         self.latest_note: dict | None = None
         self.latest_alert: dict | None = None
+        self.job: dict | None = None
         self.timings: dict[str, deque] = {key: deque() for key in MODEL_KEYS}
         self.ticks: deque[dict] = deque(maxlen=WINDOW_S + 5)
+
+    def refresh_job(self, env: dict[str, str] | None = None) -> dict:
+        job = describe_job(self.runtime, env)
+        if not job:
+            return read_json(self.runtime / "job.json")
+        with self.lock:
+            prev = self.job
+            self.job = job
+        prev_sig = (prev.get("version"), prev.get("cue")) if prev else None
+        curr_sig = (job.get("version"), job.get("cue"))
+        if curr_sig != prev_sig and job.get("cue"):
+            try:
+                (self.runtime / "note-cue").write_text(f"{job['cue']}\n")
+            except OSError:
+                pass
+        try:
+            tmp = (self.runtime / "job.json").with_suffix(".tmp")
+            tmp.write_text(json.dumps(job))
+            tmp.replace(self.runtime / "job.json")
+        except OSError:
+            pass
+        return job
 
     def sink(self, body: bytes) -> None:
         record = json.loads(body)
@@ -193,6 +220,135 @@ def read_json(path: Path) -> dict:
         return {}
 
 
+def find_env_file(root: Path, env: dict[str, str]) -> Path | None:
+    candidates = (
+        env.get("OH5_ENV_FILE", ""),
+        str(root / ".env"),
+        str(root / "../../.env"),
+        str(root / "../../../../.env"),
+    )
+    for raw in candidates:
+        if not raw:
+            continue
+        candidate = Path(raw)
+        if candidate.is_file():
+            return candidate.resolve()
+    return None
+
+
+def dotenv_value(target: str, path: Path) -> str:
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        return ""
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, _, value = stripped.partition("=")
+        if key.strip() != target:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+            value = value[1:-1]
+        return value
+    return ""
+
+
+def strip_cli_footer(text: str) -> str:
+    lines = []
+    for line in text.splitlines():
+        if line.startswith("Showing "):
+            break
+        if line.startswith("No ") and line.endswith(" found"):
+            return "{}"
+        lines.append(line)
+    return "\n".join(lines).strip()
+
+
+def parse_job_describe(payload: object, lane: str, job_name: str = JOB_NAME) -> dict | None:
+    raw = payload[0] if isinstance(payload, list) and payload else payload
+    if not isinstance(raw, dict):
+        return None
+    if isinstance(raw.get("job"), dict):
+        raw = raw["job"]
+    status = raw.get("status") if isinstance(raw.get("status"), dict) else {}
+    version = raw.get("version") or raw.get("job_version") or status.get("version")
+    if version is None:
+        return None
+    state_obj = status.get("state")
+    if isinstance(state_obj, dict):
+        state_type = state_obj.get("state_type")
+    elif isinstance(state_obj, str):
+        state_type = state_obj
+    else:
+        state_type = None
+    spec = raw.get("spec") if isinstance(raw.get("spec"), dict) else raw
+    spec_text = json.dumps(spec)
+    problem_reported = "problem_reported" in spec_text
+    cue = "strainer" if problem_reported else "bearing"
+    return {
+        "name": (spec.get("name") if isinstance(spec, dict) else None) or job_name,
+        "lane": lane,
+        "version": int(version),
+        "state": state_type,
+        "problem_reported": problem_reported,
+        "cue": cue,
+    }
+
+
+def describe_job(
+    runtime: Path, env: dict[str, str] | None = None, job_name: str = JOB_NAME
+) -> dict | None:
+    env_map = env if env is not None else dict(os.environ)
+    try:
+        lane = (runtime / "lane").read_text().strip()
+    except OSError:
+        return None
+    if lane not in ("cloud", "local"):
+        return None
+    cli_config = runtime / "cli-config"
+    cli_config.mkdir(parents=True, exist_ok=True)
+    cmd_env = {**os.environ, **env_map, "EXPANSO_CLI_CONFIG_DIR": str(cli_config)}
+    if lane == "local":
+        port = env_map.get("LOCAL_EDGE_PORT", str(LOCAL_EDGE_PORT))
+        cmd = [
+            "expanso-cli",
+            "--endpoint",
+            f"http://127.0.0.1:{port}",
+            "job",
+            "describe",
+            job_name,
+            "--format",
+            "json",
+        ]
+    else:
+        root = Path(__file__).resolve().parent.parent
+        env_file = find_env_file(root, env_map)
+        if env_file is None:
+            return None
+        endpoint = dotenv_value("EXPANSO_ENDPOINT", env_file)
+        key = dotenv_value("EXPANSO_API_KEY", env_file)
+        if not endpoint or not key.startswith("exp_ak_"):
+            return None
+        cmd_env["EXPANSO_CLI_ENDPOINT"] = endpoint
+        cmd_env["EXPANSO_CLI_AUTH_API_KEY"] = key
+        cmd = ["expanso-cli", "job", "describe", job_name, "--format", "json"]
+    try:
+        proc = subprocess.run(
+            cmd, env=cmd_env, capture_output=True, text=True, timeout=5, check=False
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0 or not proc.stdout.strip():
+        return None
+    try:
+        payload = json.loads(strip_cli_footer(proc.stdout))
+    except json.JSONDecodeError:
+        return None
+    return parse_job_describe(payload, lane, job_name)
+
+
 def ollama_in_memory(url: str, name: str) -> bool | None:
     try:
         with urllib.request.urlopen(f"{url}/api/ps", timeout=1) as response:
@@ -204,7 +360,9 @@ def ollama_in_memory(url: str, name: str) -> bool | None:
 
 def build_state(ledger: Ledger, models_dir: Path, env: dict[str, str]) -> dict:
     state = ledger.snapshot()
-    state["job"] = read_json(ledger.runtime / "job.json")
+    with ledger.lock:
+        job = dict(ledger.job) if ledger.job else read_json(ledger.runtime / "job.json")
+    state["job"] = job
     manifest = read_json(models_dir / "manifest.json")
     rates = state["rates"]
     share = {
@@ -220,6 +378,11 @@ def build_state(ledger: Ledger, models_dir: Path, env: dict[str, str]) -> dict:
             **timing,
             "share_pct": share[key] if timing["calls"] else None,
         }
+    version = job.get("version")
+    python_calls = state["timings"]["python"]["calls"]
+    python_alert = bool(isinstance(version, int) and version >= 3 and python_calls == 0)
+    state["python_alert"] = python_alert
+    models["python"]["alert"] = python_alert
     models["ollama"]["in_memory"] = ollama_in_memory(
         env.get("OLLAMA_URL", "http://127.0.0.1:11434"),
         models["ollama"].get("name") or env.get("OLLAMA_MODEL", ""),
@@ -269,9 +432,14 @@ def make_handler(ledger: Ledger, models_dir: Path, env: dict[str, str]):
     return Handler
 
 
-def ticker(ledger: Ledger, stop: threading.Event) -> None:
+def ticker(ledger: Ledger, stop: threading.Event, env: dict[str, str] | None = None) -> None:
+    ticks = 0
+    ledger.refresh_job(env)
     while not stop.wait(1.0):
         ledger.tick()
+        ticks += 1
+        if ticks % JOB_POLL_S == 0:
+            ledger.refresh_job(env)
 
 
 def main() -> None:
@@ -282,12 +450,11 @@ def main() -> None:
     runtime = Path(os.environ.get("OH5_RUNTIME", here / ".runtime"))
     models_dir = Path(os.environ.get("OH5_MODELS", here / ".models"))
     runtime.mkdir(parents=True, exist_ok=True)
+    env = dict(os.environ)
     ledger = Ledger(runtime)
     stop = threading.Event()
-    threading.Thread(target=ticker, args=(ledger, stop), daemon=True).start()
-    server = ThreadingHTTPServer(
-        ("127.0.0.1", args.port), make_handler(ledger, models_dir, dict(os.environ))
-    )
+    threading.Thread(target=ticker, args=(ledger, stop, env), daemon=True).start()
+    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(ledger, models_dir, env))
     print(f"cockpit on http://127.0.0.1:{args.port}", flush=True)
     try:
         server.serve_forever()

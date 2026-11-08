@@ -66,7 +66,28 @@ body {
 
 h1 { font-size: 1.5rem; font-weight: 500; margin: 0; }
 h2 { font-size: 1.05rem; font-weight: 500; margin: 0 0 6px; }
-.where { margin: 2px 0 0; color: var(--muted); }
+.where-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: 2px 0 0;
+}
+.where { margin: 0; color: var(--muted); }
+.badge {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--muted);
+}
+.badge-alert {
+  color: var(--alert);
+  border-color: var(--alert);
+  font-weight: 500;
+}
 
 .theme {
   font: inherit;

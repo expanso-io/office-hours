@@ -8,6 +8,7 @@ const MODELS = ["python", "ollama", "direct"];
 
 const els = {
   where: document.getElementById("where"),
+  pythonBadge: document.getElementById("python-badge"),
   theme: document.getElementById("theme"),
   tail: document.getElementById("tail"),
   models: document.getElementById("models"),
@@ -105,9 +106,10 @@ function answer(key, value) {
     return { text: `${value.part}${symptom}`, cls: "", ms: ms(value.call_ms) };
   }
 
-  const problem = value.problem_reported === undefined ? "" : `, problem ${value.problem_reported}`;
+  const hasProblem = value.problem_reported !== undefined;
+  const problem = hasProblem ? `, problem_reported=${value.problem_reported}` : "";
 
-  return { text: `${value.part}${problem}`, cls: "", ms: ms(value.call_ms) };
+  return { text: `${value.part}${problem}`, cls: hasProblem ? "flag" : "", ms: ms(value.call_ms) };
 }
 
 function modelCell(key, record, label) {
@@ -209,12 +211,15 @@ const MODEL_ROWS = [
   ["In memory", memory, ""],
 ];
 
-function renderModels(models) {
+function renderModels(models, pythonAlert) {
   const rows = MODEL_ROWS.map(([label, value, cls]) => {
     const tr = el("tr");
     tr.append(rowHeader(label));
 
-    for (const key of MODELS) tr.append(el("td", cls, value(models[key] || {}, key)));
+    for (const key of MODELS) {
+      const cellCls = label === "Calls, last 60 s" && key === "python" && pythonAlert ? `${cls} flag` : cls;
+      tr.append(el("td", cellCls, value(models[key] || {}, key)));
+    }
 
     return tr;
   });
@@ -229,9 +234,36 @@ function laneText(job) {
   return `${where} · ${job.name || "office-hours-005-models"}${version}`;
 }
 
+function renderPythonBadge(job, models, flagged) {
+  if (!els.pythonBadge) return;
+
+  const calls = Number(models.python?.calls ?? 0);
+  const version = Number(job.version) || 0;
+  const alert = Boolean(flagged || (version >= 3 && calls === 0));
+
+  els.pythonBadge.className = alert ? "badge badge-alert" : "badge";
+  els.pythonBadge.textContent = alert
+    ? "Python 60s: 0 calls (change 1 missing)"
+    : `Python 60s: ${calls} ${calls === 1 ? "call" : "calls"}`;
+}
+
 function showJson(target, record, waitingText) {
   if (record) {
-    target.textContent = JSON.stringify(record, null, 2);
+    const formatted = JSON.stringify(record, null, 2);
+
+    if (!formatted.includes('"problem_reported"')) {
+      target.textContent = formatted;
+
+      return;
+    }
+
+    const parts = formatted.split(/("problem_reported":\s*(?:true|false))/g);
+
+    const nodes = parts.map((chunk) =>
+      chunk.startsWith('"problem_reported"') ? el("span", "flag", chunk) : document.createTextNode(chunk),
+    );
+
+    target.replaceChildren(...nodes);
 
     return;
   }
@@ -241,7 +273,11 @@ function showJson(target, record, waitingText) {
 
 function render(state) {
   const rates = state.rates || {};
-  els.where.textContent = laneText(state.job || {});
+  const job = state.job || {};
+  const models = state.models || {};
+  const pythonAlert = Boolean(state.python_alert || ((Number(job.version) || 0) >= 3 && Number(models.python?.calls ?? 0) === 0));
+  els.where.textContent = laneText(job);
+  renderPythonBadge(job, models, pythonAlert);
   els.inRate.textContent = rate(rates.in_per_s, "/s");
   els.outRate.textContent = rate(rates.out_per_s, "/s");
   els.kept.textContent = Number.isFinite(rates.kept_pct) ? `${rates.kept_pct.toFixed(1)}%` : "–";
@@ -251,7 +287,7 @@ function render(state) {
   els.dead.textContent = String(state.dead_letters ?? 0);
   const tail = state.tail || [];
   els.tail.replaceChildren(...(tail.length ? tail.map(tailRow) : skeletonRows(4)));
-  renderModels(state.models || {});
+  renderModels(models, pythonAlert);
   showJson(els.note, state.latest_note, "No note has left the node yet.");
   showJson(els.alert, state.latest_alert, "No anomaly has left the node yet. Readings carry a score after change 1.");
 }

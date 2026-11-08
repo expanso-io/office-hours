@@ -190,12 +190,23 @@ def pop_cue(path: Path) -> str | None:
         return None
 
 
+def read_job_cue(path: Path) -> tuple[int | None, str | None]:
+    try:
+        job = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None, None
+    version = job.get("version")
+    cue = job.get("cue") or ("strainer" if job.get("problem_reported") else None)
+    return (version if isinstance(version, int) else None), (cue if isinstance(cue, str) else None)
+
+
 def run(url: str, runtime: Path, rate: float, seed: int) -> None:
     rng = random.Random(seed)
     notes = Notes()
     counters = Counters(runtime / "feed.json")
     rate_file = runtime / "feed-rate"
     cue_file = runtime / "note-cue"
+    job_file = runtime / "job.json"
     stop = False
 
     def halt(*_args) -> None:
@@ -211,14 +222,26 @@ def run(url: str, runtime: Path, rate: float, seed: int) -> None:
     next_note = t0 + NOTE_EVERY / 2
     next_write = t0
     sent = 0
+    last_job_sig: tuple[int | None, str | None] = (None, None)
+    active_cue: str | None = None
     while not stop:
         now = time.monotonic()
         cue = pop_cue(cue_file)
+        if not cue:
+            job_sig = read_job_cue(job_file)
+            if job_sig[0] is not None and job_sig != last_job_sig:
+                last_job_sig = job_sig
+                active_cue = job_sig[1] or "bearing"
+                cue = active_cue
+        else:
+            active_cue = cue
         if cue:
             notes.cue(cue)
             next_note = min(next_note, now + 1.0)
             if (now - t0 + t_offset) % PUMP3_CYCLE < 60:
                 t_offset = 65.0 - (now - t0) % PUMP3_CYCLE
+        elif active_cue == "strainer" and not notes.queued:
+            notes.cue("strainer")
         t = now - t0 + t_offset
         if now >= next_write:
             rate = read_rate(rate_file, rate)

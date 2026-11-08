@@ -12,6 +12,10 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 warm:
     ./scripts/democtl.sh warm
 
+# Pre-flight check: PATH, Ollama on 11434, .env mode 600, Cloud reachability, enrolled node.
+doctor:
+    ./scripts/democtl.sh doctor
+
 # Lint, unit tests and offline validation of every stage. Starts nothing.
 validate:
     ./scripts/democtl.sh validate
@@ -41,6 +45,10 @@ versions:
 
 versions-diff from="1" to="3":
     ./scripts/democtl.sh versions-diff "{{from}}" "{{to}}"
+
+# Wait for a matching note (default: strainer) to leave the node and print the model verdict.
+expect kind="strainer":
+    ./scripts/democtl.sh expect "{{kind}}"
 
 # Swap the Ollama model in the running pipeline (bench).
 ollama-model model="gemma3:270m":

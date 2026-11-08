@@ -49,6 +49,7 @@ config:
               - catch:
                   - mutation: 'root.python = {"error": error()}'
               - mapping: root = if this.python.anomaly == false { deleted() } else { this }
+      # Paste change 2 below change 1.
       # Change 2: two language models read each note, one through Ollama and
       # one by a direct HTTP call, and an anomalous reading picks up the last
       # note about its pump.

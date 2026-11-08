@@ -54,6 +54,9 @@ direct_is_ours() { [[ "$DIRECT_MODEL_URL" == "$DIRECT_DEFAULT_URL" ]]; }
 
 port_open() { lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1; }
 
+# GNU stat (Linux, WSL) takes -c; BSD stat (macOS) takes -f.
+file_mode() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
+
 # Credentials are looked up, never copied: OH5_ENV_FILE if set, else a .env
 # beside this demo, beside the session, or at the repository root.
 find_env_file() {
