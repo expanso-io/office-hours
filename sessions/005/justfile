@@ -15,6 +15,10 @@ demos := "tiny-models"
 warm:
     for d in {{demos}}; do echo "== warm $d"; just -d demos/$d -f demos/$d/justfile warm; done
 
+# Pre-flight check: PATH, Ollama on 11434, .env mode 600, Cloud reachability, enrolled node.
+doctor:
+    for d in {{demos}}; do echo "== doctor $d"; just -d demos/$d -f demos/$d/justfile doctor; done
+
 # Config-only checks; safe to run any time.
 validate:
     for d in {{demos}}; do echo "== validate $d"; just -d demos/$d -f demos/$d/justfile validate; done
@@ -41,6 +45,9 @@ versions:
 
 versions-diff from="1" to="3":
     just -d demos/tiny-models -f demos/tiny-models/justfile versions-diff "{{from}}" "{{to}}"
+
+expect kind="strainer":
+    just -d demos/tiny-models -f demos/tiny-models/justfile expect "{{kind}}"
 
 ollama-model model="gemma3:270m":
     just -d demos/tiny-models -f demos/tiny-models/justfile ollama-model "{{model}}"

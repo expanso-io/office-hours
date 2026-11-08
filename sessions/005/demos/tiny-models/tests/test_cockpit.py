@@ -156,11 +156,60 @@ def test_http_sink_and_state_endpoints(cockpit_url):
     with urllib.request.urlopen(f"{cockpit_url}/api/state") as response:
         state = json.load(response)
     assert state["job"]["version"] == 3
+    assert state["python_alert"] is False
+    assert state["models"]["python"]["alert"] is False
     assert state["records_out"] == 1
     assert state["tail"][0]["asset"] == "pump-03"
     assert state["models"]["python"]["calls"] == 1
     assert state["models"]["python"]["bytes"] == 63430
     assert state["models"]["direct"]["bytes"] == 386404992
+
+
+def test_python_alert_badge_turns_red_when_version_3_has_zero_python_calls(cockpit_url):
+    with urllib.request.urlopen(f"{cockpit_url}/api/state") as response:
+        state = json.load(response)
+    assert state["job"]["version"] == 3
+    assert state["models"]["python"]["calls"] == 0
+    assert state["python_alert"] is True
+    assert state["models"]["python"]["alert"] is True
+
+
+def test_refresh_job_polls_describe_and_derives_note_cue_from_live_spec(tmp_path, monkeypatch):
+    payloads = [
+        {
+            "version": 3,
+            "status": {"state": {"state_type": "running"}},
+            "spec": {"name": "office-hours-005-models", "config": {"processors": ["ollama_chat"]}},
+        },
+        {
+            "version": 4,
+            "status": {"state": {"state_type": "running"}},
+            "spec": {
+                "name": "office-hours-005-models",
+                "config": {"schema": {"properties": {"problem_reported": {"type": "boolean"}}}},
+            },
+        },
+    ]
+    ledger = server.Ledger(tmp_path)
+    monkeypatch.setattr(
+        server,
+        "describe_job",
+        lambda runtime, env=None: server.parse_job_describe(payloads.pop(0), "cloud"),
+    )
+
+    job_v3 = ledger.refresh_job()
+    assert job_v3["version"] == 3
+    assert job_v3["problem_reported"] is False
+    assert job_v3["cue"] == "bearing"
+    assert (tmp_path / "note-cue").read_text().strip() == "bearing"
+    assert json.loads((tmp_path / "job.json").read_text())["version"] == 3
+
+    job_v4 = ledger.refresh_job()
+    assert job_v4["version"] == 4
+    assert job_v4["problem_reported"] is True
+    assert job_v4["cue"] == "strainer"
+    assert (tmp_path / "note-cue").read_text().strip() == "strainer"
+    assert json.loads((tmp_path / "job.json").read_text())["version"] == 4
 
 
 def test_static_files_are_served_and_nothing_outside_web(cockpit_url):

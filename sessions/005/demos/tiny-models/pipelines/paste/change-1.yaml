@@ -16,3 +16,4 @@
               - catch:
                   - mutation: 'root.python = {"error": error()}'
               - mapping: root = if this.python.anomaly == false { deleted() } else { this }
+      # Paste change 2 below change 1.

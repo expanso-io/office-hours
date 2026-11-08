@@ -1,6 +1,6 @@
 # 005 - Three tiny models, one stream, three ways in
 
-**Session:** Pipeline Office Hours #00005, Thu 2026-10-22, 09:00-09:30 PT
+**Session:** Pipeline Office Hours #00005, Thu 2026-11-05, 09:00-09:30 PT
 **Stream:** https://www.twitch.tv/expansoio
 
 Four pumps send numeric readings at 20 per second and operator notes every 6
@@ -36,17 +36,31 @@ You need `expanso-edge`, `expanso-cli`, `ollama`, `llama-server` (`llama.cpp`),
 `uv`, `jq`, and `just` on your PATH, with the machine's Ollama service running
 on `127.0.0.1:11434`.
 
+```sh
+# macOS (Homebrew)
+brew install ollama llama.cpp uv jq just
+brew services start ollama
+
+# Linux or WSL
+curl -fsSL https://ollama.com/install.sh | sh
+ollama serve &
+brew install llama.cpp uv jq just
+```
+
 For `just up`, you also need an Expanso Cloud workspace and an enrolled
 `role=office-hours` node (see the top-level [Setup](../../README.md#setup)):
 copy `demos/tiny-models/.env.example` to `.env`, fill in `EXPANSO_ENDPOINT` and
-`EXPANSO_API_KEY`, and set `chmod 600 .env`. To rehearse on this machine with
-no Cloud credentials, run `just up-offline`.
+`EXPANSO_API_KEY`, and set `chmod 600 .env`. Run `just doctor` to verify PATH,
+Ollama on `127.0.0.1:11434`, `.env` permissions, Expanso Cloud reachability, and
+the enrolled `role=office-hours` node. To rehearse on this machine with no
+Cloud credentials, run `just up-offline`.
 
 ## Run
 
 ```sh
 just warm        # train the IsolationForest, download the GGUF, pull the Ollama model
 just validate    # lint, unit tests, and offline validation of all four stages
+just doctor      # check PATH, Ollama on 11434, .env mode 600, Cloud, and enrolled node
 just up          # deploy stage 1 through Expanso Cloud and start the feed and cockpit
 just status
 ```
@@ -58,13 +72,15 @@ Move through the revisions the same way the live session does (see
 [RUN-THROUGH.md](RUN-THROUGH.md) for the exact pastes and presenter script):
 
 ```sh
-just stage 2     # Change 1: Python IsolationForest scores readings and drops healthy ones
-just stage 3     # Change 2: Ollama + direct HTTP extract parts from notes and join on the node
-just break       # stop llama-server while the pipeline keeps running
-just heal        # start llama-server again; recovery happens on the next note
-just stage 4     # Wrong on purpose: ask the 360M model for problem_reported: boolean
-just rollback    # roll the job back to stage 3's spec
-just down        # stop everything, unload the Ollama model, and run the teardown audit
+just stage 2              # Change 1: Python IsolationForest scores readings and drops healthy ones
+just stage 3              # Change 2: Ollama + direct HTTP extract parts from notes and join on the node
+just break                # stop llama-server while the pipeline keeps running
+just heal                 # start llama-server again; recovery happens on the next note
+just stage 4              # Wrong on purpose: ask the 360M model for problem_reported: boolean
+just versions-diff 3 4    # inspect the one-line schema diff between versions 3 and 4
+just expect strainer      # wait for the strainer note and print the model verdict
+just rollback             # roll the job back to stage 3's spec
+just down                 # stop everything, unload the Ollama model, and run the teardown audit
 ```
 
 After each deploy or rollback, wait one note interval (6 seconds) so the

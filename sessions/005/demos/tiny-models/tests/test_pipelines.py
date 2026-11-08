@@ -1,5 +1,7 @@
 import importlib.util
+import json
 import random
+import subprocess
 from pathlib import Path
 
 import feed
@@ -44,8 +46,13 @@ def test_three_models_are_three_different_models_called_three_ways():
 
     assert "subprocess:" in STAGES[2] and "scorer/score.py" in STAGES[2]
     assert "deleted()" in STAGES[2]
+    assert "# Paste change 2 below change 1." in STAGES[2]
     assert "ollama_chat:" not in STAGES[2]
 
+    change2_paste = (PIPELINES / "paste" / "change-2.yaml").read_text()
+    assert "subprocess:" in change2_paste and "ollama_chat:" in change2_paste
+    assert "# Paste change 2 below change 1." in change2_paste
+    assert "subprocess:" in STAGES[3] and "subprocess:" in STAGES[4]
     assert "ollama_chat:" in STAGES[3] and "qwen2.5:0.5b" in STAGES[3]
     assert (
         "http:" in STAGES[3] and "/v1/chat/completions" in STAGES[3] and "smollm2-360m" in STAGES[3]
@@ -89,3 +96,40 @@ def test_feed_healthy_ranges_and_fault_schedule_match_training():
     notes.cue("strainer")
     assert notes.next(70.0) == {"kind": "note", "asset": "pump-01", "text": feed.STRAINER_NOTE}
     assert notes.next(76.0) == {"kind": "note", "asset": "pump-03", "text": feed.BEARING_NOTE}
+
+
+def test_feed_reads_job_cue_and_file_mode_prefers_gnu_stat(tmp_path):
+    job_file = tmp_path / "job.json"
+    job_file.write_text(json.dumps({"version": 4, "problem_reported": True, "cue": "strainer"}))
+    assert feed.read_job_cue(job_file) == (4, "strainer")
+
+    env_file = tmp_path / ".env"
+    env_file.write_text("EXPANSO_ENDPOINT=https://example\n")
+    env_file.chmod(0o600)
+    out = subprocess.check_output(
+        ["bash", "-c", f'source "{ROOT}/scripts/lib.sh" && file_mode "{env_file}"'],
+        text=True,
+    ).strip()
+    assert out == "600"
+
+
+def test_deploy_rejects_stage_3_without_subprocess(tmp_path):
+    broken = STAGES[3].replace(
+        (PIPELINES / "paste" / "change-1.yaml").read_text(),
+        "",
+    )
+    bad_file = tmp_path / "broken-stage-3.cloud.yaml"
+    bad_file.write_text(broken)
+    script = (
+        f'source "{ROOT}/scripts/lib.sh" && '
+        f'if grep -q "ollama_chat:" "{bad_file}" && ! grep -q "subprocess:" "{bad_file}"; '
+        'then die "missing subprocess"; fi'
+    )
+    proc = subprocess.run(
+        ["bash", "-c", script],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode != 0
+    assert "missing subprocess" in proc.stderr

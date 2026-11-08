@@ -136,8 +136,11 @@ node_state() {
 # ---------------------------------------------------------------- jobs
 
 job_record() {
-  lane_cli job list --format json | json_only |
-    jq -c --arg n "$JOB_NAME" '[.[] | select(.spec.name == $n)] | .[0] // empty'
+  (lane_cli job describe "$JOB_NAME" --format json 2>/dev/null || true) | json_only |
+    jq -c 'if type == "array" then .[0] // empty
+           elif type == "object" and has("job") then .job
+           elif type == "object" and (has("id") or has("spec") or has("version")) then .
+           else empty end'
 }
 
 job_version() {
@@ -151,8 +154,10 @@ write_job_json() {
   local job
   job="$(job_record)"
   jq -n --arg name "$JOB_NAME" --arg lane "$(lane)" --argjson job "${job:-null}" \
-    '{name: $name, lane: $lane, version: ($job.version // $job.job_version // $job.status.version // null),
-      state: ($job.status.state.state_type // null)}' >"$RT/job.json"
+    '($job.spec // $job // {} | tostring | contains("problem_reported")) as $pr |
+     {name: $name, lane: $lane, version: ($job.version // $job.job_version // $job.status.version // null),
+      state: ($job.status.state.state_type // null), problem_reported: $pr,
+      cue: (if $pr then "strainer" else "bearing" end)}' >"$RT/job.json"
 }
 
 wait_running() {
@@ -169,17 +174,15 @@ deploy_file() {
     expanso-edge validate "$file" | sed "s#$ROOT/##" >&2
     die "$(rel "$file") does not validate; fix the paste or use just stage N"
   }
+  if grep -q 'ollama_chat:' "$file" && ! grep -q 'subprocess:' "$file"; then
+    die "$(rel "$file") has change 2 (ollama_chat) without change 1 (subprocess); keep change 1 or run just stage 3"
+  fi
   say "deploying $(rel "$file") to $(lane)"
   lane_cli job deploy "$file" --force
   wait_running || say "warning: job not reported running yet"
   write_job_json
   mkdir -p "$RT/versions"
   cp "$file" "$RT/versions/v$(jq -r .version "$RT/job.json").yaml"
-  if grep -q problem_reported "$file"; then
-    printf 'strainer\n' >"$RT/note-cue"
-  else
-    printf 'bearing\n' >"$RT/note-cue"
-  fi
   say "$JOB_NAME is at version $(jq -r .version "$RT/job.json")"
 }
 
@@ -247,12 +250,88 @@ preflight_common() {
 preflight_cloud() {
   local env_file unscoped
   env_file="$(find_env_file)" || die "no .env found; set OH5_ENV_FILE or put one at the repository root"
-  [[ "$(stat -f '%Lp' "$env_file" 2>/dev/null || stat -c '%a' "$env_file")" == 600 ]] || die "the .env must be mode 600"
+  [[ "$(stat -c '%a' "$env_file" 2>/dev/null || stat -f '%Lp' "$env_file")" == 600 ]] || die "the .env must be mode 600"
   cloud_cli status >/dev/null || die "Expanso Cloud did not answer"
   # A running job with an empty selector would land on this node too.
   unscoped="$(cloud_cli job list --format json | json_only |
     jq -r '.[] | select((.spec.selector // {}) == {}) | select((.status.state.state_type // "") == "running") | .spec.name')"
   [[ -z "$unscoped" ]] || die "running jobs with empty selectors would also run here: $unscoped"
+}
+
+cmd_doctor() {
+  local fail=0 tool missing=() env_file="" mode="" endpoint="" key="" data_dir="" node="" unscoped=""
+  for tool in expanso-edge expanso-cli ollama uv jq just curl; do
+    command -v "$tool" >/dev/null || missing+=("$tool")
+  done
+  if direct_is_ours && ! command -v llama-server >/dev/null; then
+    missing+=("llama-server")
+  fi
+  if (( ${#missing[@]} == 0 )); then
+    say "[OK] PATH: expanso-edge, expanso-cli, ollama, llama-server, uv, jq, just, curl"
+  else
+    echo "[FAIL] PATH: missing ${missing[*]}" >&2
+    fail=1
+  fi
+
+  if ollama_up; then
+    say "[OK] Ollama: answering at $OLLAMA_URL"
+  else
+    echo "[FAIL] Ollama: not answering at $OLLAMA_URL" >&2
+    fail=1
+  fi
+
+  if env_file="$(find_env_file)"; then
+    mode="$(stat -c '%a' "$env_file" 2>/dev/null || stat -f '%Lp' "$env_file")"
+    endpoint="$(dotenv_value EXPANSO_ENDPOINT "$env_file")"
+    key="$(dotenv_value EXPANSO_API_KEY "$env_file")"
+    if [[ "$mode" != 600 ]]; then
+      echo "[FAIL] .env: mode is $mode (must be 600; run chmod 600 .env)" >&2
+      fail=1
+    elif [[ -z "$endpoint" || "$key" != exp_ak_* ]]; then
+      echo "[FAIL] .env: must set EXPANSO_ENDPOINT and EXPANSO_API_KEY" >&2
+      fail=1
+    else
+      say "[OK] .env: mode 600 and credentials present"
+    fi
+  else
+    echo "[FAIL] .env: no .env found; copy .env.example to .env and chmod 600 .env" >&2
+    fail=1
+  fi
+
+  mkdir -p "$RT/cli-config"
+  if [[ -n "$env_file" && "$mode" == 600 && -n "$endpoint" && "$key" == exp_ak_* ]] &&
+     cloud_cli status >/dev/null 2>&1; then
+    unscoped="$(cloud_cli job list --format json 2>/dev/null | json_only |
+      jq -r '.[] | select((.spec.selector // {}) == {}) | select((.status.state.state_type // "") == "running") | .spec.name')"
+    if [[ -n "$unscoped" ]]; then
+      echo "[FAIL] Cloud: running jobs with empty selectors would land here: $unscoped" >&2
+      fail=1
+    else
+      say "[OK] Cloud: reachable at $endpoint"
+    fi
+  else
+    echo "[FAIL] Cloud: Expanso Cloud did not answer" >&2
+    fail=1
+  fi
+
+  data_dir="$(edge_data_dir 2>/dev/null || true)"
+  if [[ -n "$env_file" && "$mode" == 600 && -n "$endpoint" && "$key" == exp_ak_* ]]; then
+    node="$(cloud_cli node list --label role=office-hours --format json 2>/dev/null | json_only |
+      jq -r 'if length > 0 then (.[0].status.connection_state // "enrolled") else "absent" end' 2>/dev/null || echo absent)"
+  else
+    node="absent"
+  fi
+  if [[ -n "$data_dir" && -d "$data_dir/config.d" && "$node" != absent ]]; then
+    say "[OK] node: role=office-hours enrolled ($node)"
+  elif [[ -n "$data_dir" && -d "$data_dir/config.d" ]]; then
+    say "[OK] node: local node data present ($node in Cloud)"
+  else
+    echo "[FAIL] node: no enrolled role=office-hours node found next to .env" >&2
+    fail=1
+  fi
+  if [[ ! -d "$RT/pids" ]]; then rm -rf "$RT/cli-config"; rmdir "$RT" 2>/dev/null || true; fi
+  (( fail == 0 )) || die "doctor found problems above"
+  say "doctor: ready for just up"
 }
 
 # ---------------------------------------------------------------- commands
@@ -328,10 +407,44 @@ cmd_versions() {
 }
 
 cmd_versions_diff() {
-  local from="${1:-1}" to="${2:-3}"
-  if ! lane_cli job versions-diff "$JOB_NAME" --from "$from" --to "$to" 2>/dev/null; then
-    diff -u "$RT/versions/v${from}.yaml" "$RT/versions/v${to}.yaml" || true
+  local from="${1:-1}" to="${2:-3}" from_file to_file
+  if [[ -d "$RT" ]] && lane_cli job versions-diff "$JOB_NAME" --from "$from" --to "$to" 2>/dev/null; then
+    return 0
   fi
+  from_file="$RT/versions/v${from}.yaml"
+  to_file="$RT/versions/v${to}.yaml"
+  [[ -f "$from_file" ]] || from_file="$(stage_file "$from")"
+  [[ -f "$to_file" ]] || to_file="$(stage_file "$to")"
+  diff -u "$(rel "$from_file")" "$(rel "$to_file")" || true
+}
+
+cmd_expect() {
+  [[ -d "$RT" ]] || die "nothing is up; run just up or just up-offline first"
+  local kind="${1:-strainer}" want_problem=0 state note
+  if [[ -f "$LIVE_FILE" ]] && grep -q problem_reported "$LIVE_FILE"; then
+    want_problem=1
+  elif [[ "$(jq -r '.problem_reported // false' "$RT/job.json" 2>/dev/null || echo false)" == true ]]; then
+    want_problem=1
+  fi
+  printf '%s\n' "$kind" >"$RT/note-cue"
+  say "waiting for the $kind note to leave the node"
+  for _ in $(seq 1 60); do
+    state="$(curl -fsS -m 2 "http://127.0.0.1:${COCKPIT_PORT}/api/state" 2>/dev/null || true)"
+    if [[ -n "$state" ]]; then
+      note="$(jq -c --arg k "$kind" --argjson wp "$want_problem" '
+        .latest_note // empty
+        | select((.text // "" | ascii_downcase | contains($k | ascii_downcase)) or (.direct.part // "" | ascii_downcase) == ($k | ascii_downcase))
+        | select($wp == 0 or (.direct | type == "object" and has("problem_reported")))
+      ' <<<"$state")"
+      if [[ -n "$note" ]]; then
+        jq -r '"verdict: asset=\(.asset) part=\(.direct.part // "none") problem_reported=\(.direct.problem_reported // "n/a") (\(.direct.call_ms // 0) ms): \(.text)"' <<<"$note"
+        jq 'del(.ts, .left_node_at)' <<<"$note"
+        return 0
+      fi
+    fi
+    sleep 0.5
+  done
+  die "timed out waiting for the $kind note"
 }
 
 cmd_ollama_model() {
@@ -414,6 +527,7 @@ cmd_validate() {
 
 case "${1:-}" in
   warm) cmd_warm ;;
+  doctor) cmd_doctor ;;
   validate) cmd_validate ;;
   up) cmd_up "${2:-cloud}" "${3:-1}" ;;
   stage) cmd_stage "${2:-}" ;;
@@ -421,6 +535,7 @@ case "${1:-}" in
   rollback) cmd_rollback ;;
   versions) cmd_versions ;;
   versions-diff) cmd_versions_diff "${2:-1}" "${3:-3}" ;;
+  expect) cmd_expect "${2:-strainer}" ;;
   ollama-model) cmd_ollama_model "${2:-}" ;;
   break) cmd_break ;;
   heal) cmd_heal ;;
@@ -428,5 +543,5 @@ case "${1:-}" in
   status) cmd_status ;;
   stop) cmd_stop ;;
   logs) tail -n 30 "$RT"/logs/*.log ;;
-  *) echo "usage: $0 {warm|validate|up cloud|local [stage]|stage N|deploy|rollback|versions|versions-diff [from] [to]|ollama-model MODEL|break|heal|rate N|status|stop|logs}" >&2; exit 2 ;;
+  *) echo "usage: $0 {warm|doctor|validate|up cloud|local [stage]|stage N|deploy|rollback|versions|versions-diff [from] [to]|expect [kind]|ollama-model MODEL|break|heal|rate N|status|stop|logs}" >&2; exit 2 ;;
 esac
