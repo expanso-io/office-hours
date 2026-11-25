@@ -2,45 +2,45 @@
   font-family: "IBM Plex Sans";
   src: url("/fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2");
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
 }
 @font-face {
   font-family: "IBM Plex Sans";
   src: url("/fonts/ibm-plex-sans-latin-500-normal.woff2") format("woff2");
   font-weight: 500;
-  font-display: swap;
+  font-display: block;
 }
 @font-face {
   font-family: "IBM Plex Mono";
   src: url("/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
 }
 @font-face {
   font-family: "IBM Plex Mono";
   src: url("/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
   font-weight: 500;
-  font-display: swap;
+  font-display: block;
 }
 
 :root,
 [data-theme="light"] {
   --bg: #f3f1ea;
-  --text: #22211d;
-  --muted: #625e55;
-  --line: #d6d1c4;
-  --faint: #e6e2d7;
+  --text: #1f1e1a;
+  --muted: #5d594f;
+  --line: #d3cec0;
+  --faint: #e4e0d4;
   --ink: #1d5a85;
-  --alert: #9c3424;
+  --alert: #9a3222;
 }
 [data-theme="dark"] {
   --bg: #161713;
-  --text: #e5e2d8;
-  --muted: #a39f93;
-  --line: #36372f;
-  --faint: #24251f;
-  --ink: #86b8dc;
-  --alert: #e3917f;
+  --text: #e8e5db;
+  --muted: #a6a296;
+  --line: #3a3b33;
+  --faint: #26271f;
+  --ink: #8bbde0;
+  --alert: #e8957f;
 }
 
 * { box-sizing: border-box; }
@@ -50,7 +50,7 @@ html { background: var(--bg); color: var(--text); }
 body {
   margin: 0;
   font-family: "IBM Plex Sans", sans-serif;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
@@ -58,16 +58,15 @@ body {
 .top {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px 24px;
+  gap: 10px 24px;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 20px clamp(14px, 4vw, 40px) 12px;
-  border-bottom: 1px solid var(--line);
+  padding: 16px clamp(14px, 3vw, 32px) 10px;
 }
 
-h1 { font-size: 1.45rem; font-weight: 500; margin: 0; }
-h2 { font-size: 1.05rem; font-weight: 500; margin: 0 0 4px; }
-.where { margin: 4px 0 0; color: var(--muted); }
+h1 { font-size: 1.5rem; font-weight: 500; margin: 0; }
+h2 { font-size: 1.05rem; font-weight: 500; margin: 0 0 6px; }
+.where { margin: 2px 0 0; color: var(--muted); }
 
 .theme {
   font: inherit;
@@ -80,44 +79,86 @@ h2 { font-size: 1.05rem; font-weight: 500; margin: 0 0 4px; }
 }
 .theme:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
-main {
-  padding: 8px clamp(14px, 4vw, 40px) 40px;
-  max-width: 1400px;
+/* Flow numbers: one line of labelled values, fixed widths so nothing shifts. */
+.flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  margin: 0;
+  padding: 10px clamp(14px, 3vw, 32px) 12px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
-
-section { margin-top: 24px; }
-.hint { margin: 0 0 10px; color: var(--muted); }
-
-.json {
+.flow dt { color: var(--muted); font-size: 0.85rem; }
+.flow dd {
+  margin: 0;
   font-family: "IBM Plex Mono", monospace;
-  font-size: 13px;
-  line-height: 1.5;
-  margin: 8px 0 0;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 7.5ch;
+  white-space: nowrap;
 }
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "tail" "json" "models";
+  gap: 20px 32px;
+  padding: 14px clamp(14px, 3vw, 32px) 32px;
+}
+.tail-area { grid-area: tail; min-width: 0; }
+.models-area { grid-area: models; min-width: 0; }
+.json-area { grid-area: json; min-width: 0; }
+
+@media (min-width: 1200px) {
+  .grid {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    grid-template-areas: "tail json" "models json";
+    align-items: start;
+  }
+}
+
+.hint { margin: 8px 0 0; color: var(--muted); font-size: 0.9rem; }
 
 table { width: 100%; border-collapse: collapse; }
 th, td {
   text-align: left;
   vertical-align: top;
-  padding: 8px 10px 8px 0;
+  padding: 6px 10px 6px 0;
   border-bottom: 1px solid var(--line);
 }
-th { font-weight: 500; color: var(--muted); }
+th { font-weight: 500; color: var(--muted); font-size: 0.9rem; }
 
-.num, .mono { font-family: "IBM Plex Mono", monospace; font-size: 13px; }
-.ms { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12.5px; display: block; }
+.num { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+.ms { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
 .flag { color: var(--alert); font-weight: 500; }
-.off { color: var(--muted); font-style: italic; }
-.rid { font-family: "IBM Plex Mono", monospace; font-size: 13px; display: block; }
-.sub { color: var(--muted); font-size: 13px; display: block; }
+.off { color: var(--muted); }
+.from-note { color: var(--muted); font-size: 0.85em; }
 
-.models th[scope="row"] { color: var(--text); width: 22%; }
-.models td { font-size: 14px; }
+/* The tail keeps one line per record so rows do not jump as they update. */
+.tail { table-layout: fixed; font-size: 0.92rem; }
+.tail td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tail .c-time { width: 7.2em; }
+.tail .c-asset { width: 5.4em; }
+.tail .c-what { width: auto; }
+.tail .c-model { width: 19%; }
+.tail tr { height: 2.15em; }
+
+.models th[scope="row"] { color: var(--text); width: 24%; font-size: 0.95rem; }
+.models td { font-size: 0.95rem; }
+
+.json {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  margin: 0 0 18px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-height: 7.5em;
+}
 
 .skeleton-line,
 .skeleton-cell {
@@ -141,15 +182,15 @@ th { font-weight: 500; color: var(--muted); }
 
 /* Narrow screens: each record becomes a block of labelled lines. */
 @media (max-width: 860px) {
-  .records thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .records, .records tbody, .records tr, .records td { display: block; width: 100%; }
-  .records tr { border-bottom: 1px solid var(--line); padding: 10px 0; }
-  .records td { border: 0; padding: 3px 0; display: grid; grid-template-columns: 7.5em 1fr; gap: 8px; }
-  .records td::before { content: attr(data-label); color: var(--muted); font-size: 13px; }
-  .records td .ms { display: inline; margin-left: 6px; }
+  .tail thead, .tail colgroup { display: none; }
+  .tail, .tail tbody, .tail tr, .tail td { display: block; width: 100%; }
+  .tail tr { height: auto; border-bottom: 1px solid var(--line); padding: 8px 0; }
+  .tail td { border: 0; padding: 2px 0; white-space: normal; display: grid; grid-template-columns: 6.5em 1fr; gap: 8px; }
+  .tail td::before { content: attr(data-label); color: var(--muted); font-size: 0.85rem; }
 }
 
 @media (max-width: 480px) {
-  .models th, .models td { padding-right: 6px; font-size: 12.5px; }
-  .models .num, .models .mono { font-size: 12px; }
+  .models th, .models td { padding-right: 6px; font-size: 0.8rem; }
+  .flow { gap: 6px 18px; }
+  .flow dd { font-size: 1rem; }
 }
